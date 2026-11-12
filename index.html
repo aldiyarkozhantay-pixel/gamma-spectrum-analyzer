@@ -1,0 +1,2787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Charge Spectrum Analyzer v23</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --app-bg:    #dcdcdc;
+    --panel-bg:  #ececec;
+    --sidebar-bg:#e4e4e4;
+    --plot-bg:   #ffffff;
+    --border:    #a0a0a0;
+    --border-lt: #c8c8c8;
+    --text:      #111111;
+    --muted:     #555555;
+    --label:     #333333;
+    --mono:      Arial, Helvetica, sans-serif;
+    --btn-green: #3a7d3a;
+    --btn-blue:  #1a4a8a;
+    --btn-red:   #8a1a1a;
+    --btn-gray:  #666666;
+  }
+
+  body {
+    background: var(--app-bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--panel-bg);
+    border-bottom: 2px solid var(--border);
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text);
+    letter-spacing: 0;
+  }
+  header span { color: var(--muted); font-size: 11px; }
+
+  /* ── Tabs ── */
+  .tab-nav {
+    background: var(--panel-bg);
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    padding: 0 6px;
+    gap: 2px;
+  }
+  .tab-btn {
+    background: var(--app-bg);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 3px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    margin-bottom: -2px;
+    position: relative;
+  }
+  .tab-btn:hover { color: var(--text); background: #d8d8d8; }
+  .tab-btn.active {
+    background: var(--panel-bg);
+    color: var(--text);
+    font-weight: bold;
+    border-bottom: 2px solid var(--panel-bg);
+  }
+
+  .tab-panel { display: none; flex: 1; overflow: hidden; }
+  .tab-panel.active { display: flex; }
+  .workspace { display: flex; flex: 1; overflow: hidden; flex-direction: column; }
+
+  /* ── Sidebar ── */
+  .sidebar, .calib-sidebar, .compare-sidebar {
+    background: var(--sidebar-bg);
+    border-right: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .sidebar      { width: 210px; min-width: 210px; }
+  .calib-sidebar{ width: 250px; min-width: 250px; }
+  .compare-sidebar { width: 230px; min-width: 230px; }
+
+  /* ── Panels (sidebar sections) ── */
+  .panel {
+    border-bottom: 1px solid var(--border);
+    padding: 6px 8px;
+  }
+  .panel-label {
+    font-size: 10px;
+    font-weight: bold;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: var(--app-bg);
+    border: 1px solid var(--border-lt);
+    padding: 1px 5px;
+    margin-bottom: 6px;
+    display: inline-block;
+  }
+
+  /* ── Mode select ── */
+  .mode-select-row { display: flex; gap: 2px; margin-bottom: 6px; }
+  .mode-select-btn {
+    flex: 1; padding: 3px 6px; font-size: 10px; font-family: var(--mono);
+    background: var(--plot-bg); border: 1px solid var(--border); color: var(--muted); cursor: pointer; text-align: center;
+  }
+  .mode-select-btn:hover { background: #e0e0e0; }
+  .mode-select-btn.active { background: var(--btn-blue); color: #fff; border-color: #0a2a5a; font-weight: bold; }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 1px dashed var(--border);
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.6;
+    background: var(--plot-bg);
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    background: #f8f8f8;
+    border-color: var(--btn-blue);
+    color: var(--btn-blue);
+  }
+  .drop-zone input { display: none; }
+
+  /* ── File list ── */
+  .file-list { display: flex; flex-direction: column; gap: 1px; max-height: 110px; overflow-y: auto; }
+  .file-item {
+    display: flex; align-items: center; gap: 5px;
+    padding: 2px 4px; cursor: pointer;
+    font-size: 11px; color: var(--muted);
+  }
+  .file-item:hover { background: #d4d4d4; color: var(--text); }
+  .file-item.active { background: var(--btn-blue); color: #fff; }
+  .file-item .dot { width: 5px; height: 5px; background: var(--muted); flex-shrink: 0; }
+  .file-item.active .dot { background: #fff; }
+  .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-remove { color: var(--muted); background: none; border: none; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; opacity: 0; }
+  .file-item:hover .file-remove { opacity: 1; color: var(--btn-red); }
+  .file-item.active .file-remove { opacity: 1; color: #fbb; }
+
+  /* ── Form controls ── */
+  .control-row { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+  .control-row:last-child { margin-bottom: 0; }
+  label { font-size: 11px; color: var(--muted); }
+
+  input[type="number"], input[type="text"], select {
+    background: var(--plot-bg);
+    border: 1px solid var(--border);
+    border-top-color: #888;
+    border-left-color: #888;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 5px;
+    width: 100%;
+    outline: none;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
+  input[type="number"]:focus, input[type="text"]:focus, select:focus { border-color: var(--btn-blue); }
+  .range-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+
+  /* ── Toggle (checkbox-style) ── */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 1px 0; }
+  .toggle {
+    width: 28px; height: 14px;
+    background: var(--plot-bg);
+    border: 1px solid var(--border);
+    border-top-color: #888; border-left-color: #888;
+    position: relative; cursor: pointer;
+    outline: none; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--btn-green); border-color: #2a5a2a; }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 8px; height: 8px;
+    background: #fff;
+    border: 1px solid #aaa;
+    top: 2px; left: 2px;
+    transition: transform .1s;
+  }
+  .toggle.on::after { transform: translateX(14px); border-color: #fff; }
+
+  /* ── Buttons ── */
+  .btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-top-color: #c8c8c8; border-left-color: #c8c8c8;
+    border-bottom-color: #888; border-right-color: #888;
+    color: var(--text);
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    width: 100%;
+    font-family: var(--mono);
+    margin-top: 3px;
+    text-align: left;
+  }
+  .btn:hover { background: #d8d8d8; }
+  .btn:active { border-top-color: #888; border-left-color: #888; border-bottom-color: #c8c8c8; border-right-color: #c8c8c8; }
+  .btn-green { background: #c8e0c8; border-color: var(--btn-green); color: #1a4a1a; font-weight: bold; }
+  .btn-green:hover { background: #b8d8b8; }
+  .btn-blue  { background: #c8d4e8; border-color: var(--btn-blue);  color: #0a2a5a; font-weight: bold; }
+  .btn-blue:hover  { background: #b8c8e0; }
+  .btn-red   { background: #e8c8c8; border-color: var(--btn-red);   color: #5a0a0a; font-weight: bold; }
+  .btn-red:hover   { background: #e0b8b8; }
+  /* backwards compat aliases */
+  .btn-primary { background: #c8d4e8; border-color: var(--btn-blue); color: #0a2a5a; font-weight: bold; }
+  .btn-accent  { background: #c8e0c8; border-color: var(--btn-green); color: #1a4a1a; font-weight: bold; }
+  .btn-accent:hover { background: #b8d8b8; }
+  .btn-accent[disabled] { background: var(--panel-bg); color: var(--muted); border-color: var(--border-lt); font-weight: normal; cursor: default; }
+
+  /* ── Main plot area ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: var(--app-bg); }
+  .chart-area { flex: 1; padding: 12px; display: flex; align-items: stretch; justify-content: stretch; min-height: 0; }
+  .chart-wrap {
+    width: 100%; height: 100%;
+    background: var(--plot-bg);
+    border: 1px solid var(--border);
+    border-top-color: #888; border-left-color: #888;
+    position: relative;
+  }
+
+  /* ── Box-zoom (drag-to-zoom) ── */
+  .zoom-box {
+    position: absolute;
+    border: 1px dashed var(--btn-blue);
+    background: rgba(26,74,138,0.12);
+    pointer-events: none;
+    display: none;
+    z-index: 6;
+  }
+  .zoom-hint {
+    position: absolute;
+    top: 4px; right: 8px;
+    font-size: 9px;
+    color: var(--muted);
+    opacity: 0.75;
+    pointer-events: none;
+    z-index: 4;
+    background: rgba(255,255,255,0.6);
+    padding: 0 3px;
+  }
+  #spectrumChart, #calibChart, #compareChart { cursor: crosshair; }
+
+  /* ── Empty state ── */
+  .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .empty-state p { font-size: 11px; color: var(--muted); line-height: 2; text-align: center; }
+
+  /* ── Messages ── */
+  .error-msg   { background: #ffe8e8; border: 1px solid var(--btn-red); color: var(--btn-red); padding: 4px 7px; font-size: 11px; margin-top: 4px; display: none; line-height: 1.4; }
+  .success-msg { background: #e8f4e8; border: 1px solid var(--btn-green); color: var(--btn-green); padding: 4px 7px; font-size: 11px; margin-top: 4px; display: none; line-height: 1.4; }
+
+  /* ── Status bar ── */
+  .statusbar, .calib-statusbar, .compare-statusbar {
+    background: var(--panel-bg);
+    border-top: 2px solid var(--border);
+    padding: 3px 12px;
+    display: flex; gap: 18px;
+    font-size: 11px; color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .statusbar .val, .calib-statusbar .val, .compare-statusbar .val { color: var(--text); font-weight: bold; }
+
+  /* ── Calibration layout ── */
+  .calib-layout  { display: flex; flex: 1; overflow: hidden; }
+  .calib-main    { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .calib-chart-area { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+  .calib-chart-wrap {
+    flex: 1; min-height: 0; position: relative;
+    background: var(--plot-bg);
+    border: 1px solid var(--border);
+    border-top-color: #888; border-left-color: #888;
+  }
+  .click-hint { font-size: 11px; color: var(--muted); padding: 0 2px; }
+  .click-hint span { color: var(--btn-blue); font-weight: bold; }
+
+  /* ── Peak table ── */
+  .peak-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .peak-table th { text-align: left; color: var(--muted); font-weight: bold; font-size: 10px; padding: 2px 6px; border-bottom: 1px solid var(--border); background: var(--app-bg); }
+  .peak-table td { padding: 3px 6px; border-bottom: 1px solid var(--border-lt); }
+  .peak-table tr:hover td { background: #d8d8d8; }
+  .peak-table input[type="number"] { border: 1px solid var(--border-lt); padding: 1px 3px; font-size: 11px; width: 72px; background: var(--plot-bg); }
+  .peak-table input[type="number"]:focus { border-color: var(--btn-blue); outline: none; }
+  .peak-del { background: none; border: none; cursor: pointer; color: var(--btn-red); font-size: 13px; }
+  .peak-del:hover { color: #c00; }
+
+  /* ── Result / info boxes ── */
+  .result-box {
+    background: var(--plot-bg);
+    border: 1px solid var(--border);
+    border-top-color: #888; border-left-color: #888;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.8;
+  }
+  .result-box .eq  { color: var(--text); font-size: 12px; font-weight: bold; }
+  .result-box .r2  { color: var(--muted); font-size: 10px; }
+
+  /* ── Compare layout ── */
+  .compare-layout    { display: flex; flex: 1; overflow: hidden; }
+  .compare-main      { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .compare-chart-area { flex: 1; padding: 12px; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .compare-chart-wrap {
+    flex: 1; min-height: 0;
+    position: relative;
+    background: var(--plot-bg);
+    border: 1px solid var(--border);
+    border-top-color: #888; border-left-color: #888;
+  }
+  .spec-slot { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+  .spec-slot:last-child { margin-bottom: 0; }
+  .slot-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 5px; font-weight: bold; }
+  .slot-dot { width: 10px; height: 10px; flex-shrink: 0; border: 1px solid #888; }
+  .slot-select { background: var(--plot-bg); border: 1px solid var(--border); border-top-color: #888; border-left-color: #888; color: var(--text); font-size: 11px; padding: 2px 4px; width: 100%; outline: none; cursor: pointer; }
+  .slot-select:focus { border-color: var(--btn-blue); }
+  .norm-btns { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 3px; }
+  .norm-btn { background: var(--panel-bg); border: 1px solid var(--border); border-top-color: #c8c8c8; border-left-color: #c8c8c8; border-bottom-color: #888; border-right-color: #888; color: var(--muted); font-size: 10px; padding: 2px 6px; cursor: pointer; }
+  .norm-btn.active { background: var(--btn-blue); color: #fff; border-color: #0a2a5a; }
+  .norm-btn:hover:not(.active) { background: #d0d8e4; color: var(--btn-blue); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 12px; }
+  ::-webkit-scrollbar-track { background: var(--app-bg); border-left: 1px solid var(--border-lt); }
+  ::-webkit-scrollbar-thumb { background: var(--panel-bg); border: 1px solid var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: #d0d0d0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Charge Spectrum Analyzer</h1>
+  <span>DAT / CSV</span>
+</header>
+
+<div class="tab-nav">
+  <button class="tab-btn active" data-tab="spectrum">Spectrum</button>
+  <button class="tab-btn" data-tab="calibration">Calibration</button>
+  <button class="tab-btn" data-tab="compare">Compare</button>
+</div>
+
+<div class="workspace">
+
+  <!-- ══════════════════════ SPECTRUM TAB ══════════════════════ -->
+  <div class="tab-panel active" id="tab-spectrum">
+    <aside class="sidebar">
+      <div class="panel">
+        <div class="panel-label">Files</div>
+        <div class="mode-select-row">
+          <button class="mode-select-btn active" id="modeCharge">Charge (pC)</button>
+          <button class="mode-select-btn" id="modeBins">Bins / SPE</button>
+        </div>
+        <input type="file" id="fileInput" accept=".dat,.csv,.txt,.spe,.chn,.mca" multiple style="display:none;">
+        <div class="drop-zone" id="dropZone">
+          Drop files or click<br>
+          <small id="dropHint">.dat &nbsp; .csv</small>
+        </div>
+        <div class="error-msg" id="errorMsg"></div>
+      </div>
+      <div class="panel" id="fileListPanel" style="display:none;">
+        <div class="panel-label">Loaded</div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Options</div>
+        <div class="control-row">
+          <div class="toggle-row">
+            <label>Absolute value</label>
+            <button class="toggle on" id="absToggle"></button>
+          </div>
+        </div>
+        <div class="control-row">
+          <div class="toggle-row">
+            <label>Log Y axis</label>
+            <button class="toggle" id="logToggle"></button>
+          </div>
+        </div>
+        <div class="control-row" style="margin-top:10px;">
+          <label>Bins</label>
+          <input type="number" id="binCount" value="100" min="5" max="2000">
+        </div>
+        <div class="control-row">
+          <div class="toggle-row">
+            <label>Smoothing (Gaussian)</label>
+            <button class="toggle" id="smoothToggle"></button>
+          </div>
+        </div>
+        <div class="control-row" id="smoothWidthRow" style="display:none;">
+          <label>Smooth width (σ bins)</label>
+          <input type="number" id="smoothWidth" value="2" min="1" max="20" step="1">
+        </div>
+      </div>
+      <div class="panel" id="bgPanel" style="display:none;">
+        <div class="panel-label">Background subtraction</div>
+        <div class="control-row">
+          <label>Background file</label>
+          <select id="bgFileSelect" style="width:100%;">
+            <option value="">— none —</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <div class="toggle-row">
+            <label>Subtract background</label>
+            <button class="toggle" id="bgSubtractToggle"></button>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Sample live time [s]</label>
+          <input type="number" id="bgSampleLT" placeholder="optional" step="any" min="0">
+        </div>
+        <div class="control-row">
+          <label>Background live time [s]</label>
+          <input type="number" id="bgLT" placeholder="optional" step="any" min="0">
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Range</div>
+        <div class="control-row">
+          <label>Charge [pC]</label>
+          <div class="range-row">
+            <input type="number" id="xMin" placeholder="min" step="any">
+            <input type="number" id="xMax" placeholder="max" step="any">
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Counts</label>
+          <div class="range-row">
+            <input type="number" id="yMin" placeholder="min" step="1">
+            <input type="number" id="yMax" placeholder="max" step="1">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="applyBtn">Apply</button>
+        <button class="btn" id="resetBtn">Reset range</button>
+      </div>
+      <div class="panel">
+        <div class="panel-label">Export</div>
+        <button class="btn" id="exportPng">Save PNG</button>
+        <button class="btn" id="exportCsv">Save histogram CSV</button>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="chart-area">
+        <div class="empty-state" id="emptyState">
+          <p>No data loaded.<br>Upload a CAEN .dat or .csv file.</p>
+        </div>
+        <div class="chart-wrap" id="chartWrap" style="display:none;">
+          <canvas id="spectrumChart"></canvas>
+          <div class="zoom-box" id="zoomBoxSpectrum"></div>
+          <div class="zoom-hint">drag to zoom · double-click to reset</div>
+        </div>
+      </div>
+      <div class="statusbar">
+        <span>Events: <span class="val" id="statPoints">—</span></span>
+        <span>Min Q: <span class="val" id="statMin">—</span></span>
+        <span>Max Q: <span class="val" id="statMax">—</span></span>
+        <span>Mean Q: <span class="val" id="statMean">—</span></span>
+      </div>
+    </main>
+  </div>
+
+  <!-- ══════════════════════ CALIBRATION TAB ══════════════════════ -->
+  <div class="tab-panel" id="tab-calibration">
+    <div class="calib-layout">
+
+      <!-- Left sidebar: controls -->
+      <aside class="calib-sidebar">
+
+        <div class="panel">
+          <div class="panel-label">Peak picking</div>
+          <div class="control-row">
+            <label>Bins (preview)</label>
+            <input type="number" id="calibBins" value="100" min="5" max="2000">
+          </div>
+          <div class="control-row">
+            <label>Max snap distance (&plusmn; bins)</label>
+            <input type="number" id="calibWindow" value="3" min="1" max="50">
+          </div>
+          <div class="control-row">
+            <div class="toggle-row">
+              <label>Absolute value</label>
+              <button class="toggle on" id="calibAbsToggle"></button>
+            </div>
+          </div>
+          <div id="gaussFitInfo" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;display:none;"></div>
+        </div>
+
+        <div class="panel" id="calibPeakPanel">
+          <div class="panel-label">Marked peaks (<span id="peakCount">0</span>)</div>
+          <table class="peak-table">
+            <thead>
+              <tr>
+                <th>Q [pC]</th>
+                <th>E [keV]</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="peakTableBody">
+              <tr id="noPeaksRow"><td colspan="3" style="color:var(--muted);padding:8px;">No peaks marked.</td></tr>
+            </tbody>
+          </table>
+          <button class="btn btn-accent" id="fitCalibBtn" style="margin-top:10px;" disabled>Fit linear calibration</button>
+          <button class="btn" id="clearPeaksBtn" style="margin-top:4px;">Clear all peaks</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Manual equation</div>
+          <p style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:8px;">
+            Enter <em>E = a·Q + b</em> directly:
+          </p>
+          <div class="control-row">
+            <label>Slope a [keV/pC]</label>
+            <input type="number" id="manualA" placeholder="e.g. 2.5" step="any">
+          </div>
+          <div class="control-row">
+            <label>Intercept b [keV]</label>
+            <input type="number" id="manualB" placeholder="e.g. 0" step="any">
+          </div>
+          <button class="btn btn-primary" id="applyManualBtn">Apply equation</button>
+          <div class="success-msg" id="manualSuccessMsg">Calibration applied.</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">3 — Auto Peak Search</div>
+          <div class="control-row">
+            <label>Min height (× noise σ)</label>
+            <input type="number" id="peakSearchThresh" value="5" min="1" max="50" step="0.5">
+          </div>
+          <div class="control-row">
+            <label>Min separation (bins)</label>
+            <input type="number" id="peakSearchSep" value="5" min="1" max="100">
+          </div>
+          <button class="btn btn-blue" id="runPeakSearchBtn">Find peaks</button>
+        </div>
+
+        <div class="panel" id="netAreaPanel" style="display:none;">
+          <div class="panel-label">Net Peak Area</div>
+          <div class="result-box" id="netAreaBox" style="line-height:1.9;"></div>
+          <div class="control-row" style="margin-top:6px;">
+            <label>Live time [s]</label>
+            <input type="number" id="liveTimeInput" placeholder="e.g. 300" step="any" min="0">
+          </div>
+          <div class="control-row">
+            <label>Detector ε [0–1]</label>
+            <input type="number" id="efficiencyInput" placeholder="e.g. 0.05" step="any" min="0" max="1">
+          </div>
+          <div class="result-box" id="activityBox" style="line-height:1.9;margin-top:4px;display:none;"></div>
+        </div>
+
+        <div class="panel" id="nuclidePanel" style="display:none;">
+          <div class="panel-label">Nuclide ID</div>
+          <p style="font-size:10px;color:var(--muted);line-height:1.5;margin-bottom:6px;">Requires calibration. Matches peaks to known gamma lines (±ΔE).</p>
+          <div class="control-row">
+            <label>Tolerance [keV]</label>
+            <input type="number" id="nuclideTolerance" value="10" min="1" max="100" step="1">
+          </div>
+          <button class="btn btn-blue" id="runNuclideBtn">Identify nuclides</button>
+          <div id="nuclideResults" style="margin-top:6px;font-size:10px;line-height:1.7;font-family:var(--mono);max-height:200px;overflow-y:auto;"></div>
+        </div>
+
+        <div class="panel" id="calibResultPanel" style="display:none;">
+          <div class="panel-label">Calibration result</div>
+          <div class="result-box" id="calibResultBox"></div>
+          <button class="btn btn-accent" id="applyCalibBtn" style="margin-top:8px;">Apply to spectrum</button>
+        </div>
+
+        <div class="panel" id="resolutionPanel" style="display:none;">
+          <div class="panel-label">Resolution</div>
+          <div class="result-box" id="resolutionBox" style="line-height:2;"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Range</div>
+          <div class="control-row">
+            <label>Charge [pC]</label>
+            <div class="range-row">
+              <input type="number" id="calibXMin" placeholder="min" step="any">
+              <input type="number" id="calibXMax" placeholder="max" step="any">
+            </div>
+          </div>
+          <div class="control-row">
+            <label>Counts</label>
+            <div class="range-row">
+              <input type="number" id="calibYMin" placeholder="min" step="1">
+              <input type="number" id="calibYMax" placeholder="max" step="1">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="applyCalibRangeBtn">Apply</button>
+          <button class="btn" id="resetCalibRangeBtn">Reset range</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Export</div>
+          <button class="btn" id="exportCalibPng">Save calibrated PNG</button>
+          <button class="btn" id="exportCalibCsv">Save calibrated CSV</button>
+        </div>
+
+      </aside>
+
+      <!-- Right: chart -->
+      <div class="calib-main">
+        <div class="calib-chart-area">
+          <div class="click-hint" id="calibHint">
+            <span id="calibHintText">Load data in the Spectrum tab first.</span>
+          </div>
+          <div class="calib-chart-wrap" id="calibChartWrap">
+            <canvas id="calibChart"></canvas>
+            <div class="zoom-box" id="zoomBoxCalib"></div>
+            <div class="zoom-hint">drag to zoom · double-click to reset</div>
+          </div>
+        </div>
+        <div class="calib-statusbar">
+          <span>Calibration: <span class="val" id="calibStatus">None</span></span>
+          <span>a: <span class="val" id="calibA">—</span></span>
+          <span>b: <span class="val" id="calibB">—</span></span>
+          <span>R²: <span class="val" id="calibR2">—</span></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════ COMPARE TAB ══════════════════════ -->
+  <div class="tab-panel" id="tab-compare">
+    <div class="compare-layout">
+
+      <aside class="compare-sidebar">
+
+        <div class="panel">
+          <div class="panel-label">Spectra</div>
+          <div class="spec-slot" id="slot0">
+            <div class="slot-label"><span class="slot-dot" style="background:#111;"></span>Spectrum A</div>
+            <select class="slot-select" id="slotSelect0">
+              <option value="">— select file —</option>
+            </select>
+          </div>
+          <div class="spec-slot" id="slot1">
+            <div class="slot-label"><span class="slot-dot" style="background:#888;"></span>Spectrum B</div>
+            <select class="slot-select" id="slotSelect1">
+              <option value="">— select file —</option>
+            </select>
+          </div>
+          <div class="spec-slot" id="slot2" style="display:none;">
+            <div class="slot-label"><span class="slot-dot" style="background:#bbb;"></span>Spectrum C</div>
+            <select class="slot-select" id="slotSelect2">
+              <option value="">— select file —</option>
+            </select>
+          </div>
+          <button class="btn" id="addSlotBtn" style="margin-top:6px;">+ Add third spectrum</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Normalisation</div>
+          <div class="norm-btns">
+            <button class="norm-btn active" data-norm="none">None</button>
+            <button class="norm-btn" data-norm="area">Area</button>
+            <button class="norm-btn" data-norm="max">Max</button>
+            <button class="norm-btn" data-norm="livetime">Live time</button>
+          </div>
+          <p style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6;" id="normDesc">
+            Raw counts, no scaling.
+          </p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Options</div>
+          <div class="control-row">
+            <label>Bins</label>
+            <input type="number" id="compareBins" value="100" min="5" max="2000">
+          </div>
+          <div class="control-row">
+            <div class="toggle-row">
+              <label>Absolute value</label>
+              <button class="toggle on" id="compareAbsToggle"></button>
+            </div>
+          </div>
+          <div class="control-row">
+            <div class="toggle-row">
+              <label>Log Y axis</label>
+              <button class="toggle" id="compareLogToggle"></button>
+            </div>
+          </div>
+          <div class="control-row">
+            <div class="toggle-row">
+              <label>Fill under curve</label>
+              <button class="toggle" id="compareFillToggle"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Live time [s]</div>
+          <p style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Required only for "Live time" normalisation.</p>
+          <div class="control-row">
+            <label>Spectrum A</label>
+            <input type="number" id="livetime0" placeholder="e.g. 300" step="any" min="0">
+          </div>
+          <div class="control-row">
+            <label>Spectrum B</label>
+            <input type="number" id="livetime1" placeholder="e.g. 300" step="any" min="0">
+          </div>
+          <div class="control-row" id="livetime2row" style="display:none;">
+            <label>Spectrum C</label>
+            <input type="number" id="livetime2" placeholder="e.g. 300" step="any" min="0">
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Range</div>
+          <div class="control-row">
+            <label>Charge [pC]</label>
+            <div class="range-row">
+              <input type="number" id="compareXMin" placeholder="min" step="any">
+              <input type="number" id="compareXMax" placeholder="max" step="any">
+            </div>
+          </div>
+          <div class="control-row">
+            <label>Counts</label>
+            <div class="range-row">
+              <input type="number" id="compareYMin" placeholder="min" step="1">
+              <input type="number" id="compareYMax" placeholder="max" step="1">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="applyCompareRangeBtn">Apply</button>
+          <button class="btn" id="resetCompareRangeBtn">Reset range</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-label">Export</div>
+          <button class="btn" id="exportComparePng">Save PNG</button>
+        </div>
+
+      </aside>
+
+      <div class="compare-main">
+        <div class="compare-chart-area">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);" id="compareHint">Select files in the Spectrum tab first, then choose them above.</div>
+          <div class="compare-chart-wrap" id="compareChartWrap">
+            <canvas id="compareChart"></canvas>
+            <div class="zoom-box" id="zoomBoxCompare"></div>
+            <div class="zoom-hint">drag to zoom · double-click to reset</div>
+          </div>
+        </div>
+        <div class="compare-statusbar">
+          <span id="compareStatA">A: —</span>
+          <span id="compareStatB">B: —</span>
+          <span id="compareStatC" style="display:none;">C: —</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div><!-- .workspace -->
+
+<script>
+/* ═══════════════════════════════════════════════
+   SHARED STATE
+═══════════════════════════════════════════════ */
+let forcedMode = null;
+const state = {
+  files: {}, activeFile: null,
+  absValue: true, logY: false,
+  bins: 100, baseBins: 100,
+  xMin: null, xMax: null, yMin: null, yMax: null,
+  // calibration
+  calibration: null,   // { a, b, r2, source: 'fit'|'manual' }
+  peaks: [],           // [{q, e}]
+  calibAbsValue: true,
+  calibBins: 100,
+  calibXMin: null, calibXMax: null, calibYMin: null, calibYMax: null,
+  // background subtraction
+  bgFile: null, bgSubtract: false, bgLiveTime: null, bgSampleLiveTime: null,
+};
+let chart = null;
+let calibChartObj = null;
+let compareChartObj = null;
+let lastSpectrumCenters = null;
+let lastCalibCenters = null;
+let lastCompareCenters = null;
+let pendingPeakQ = null;   // charge value clicked, awaiting energy input
+const compareState = {
+  slots: [null, null, null],   // file names
+  norm: 'none',
+  bins: 100,
+  absValue: true,
+  logY: false,
+  fill: false,
+  livetimes: [null, null, null],
+  threeSlots: false,
+  xMin: null, xMax: null, yMin: null, yMax: null,
+};
+
+/* ═══════════════════════════════════════════════
+   PARSING
+═══════════════════════════════════════════════ */
+function parseCAEN(text) {
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith('===')) continue;
+    const p = t.split(/\s+/);
+    if (p.length < 4) continue;
+    const n = p.map(Number);
+    if (n.some(isNaN)) continue;
+    out.push(n[3]);
+  }
+  return out;
+}
+
+// SPE / integer-histogram format.
+// Handles: ORTEC SPE, CAEN MCA text, "header + one-count-per-line", and bare count lists.
+// Strategy: find the longest contiguous run of signed-integer-only lines — that's the histogram.
+function parseSPE(text) {
+  const lines = text.split(/\r?\n/);
+
+  // Find the longest contiguous run of pure-integer lines (signed, e.g. -1 or 4096)
+  let bestStart = -1, bestLen = 0;
+  let runStart  = -1, runLen  = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^-?\d+$/.test(lines[i].trim())) {
+      if (runStart < 0) { runStart = i; runLen = 1; } else runLen++;
+    } else {
+      if (runLen > bestLen) { bestLen = runLen; bestStart = runStart; }
+      runStart = -1; runLen = 0;
+    }
+  }
+  if (runLen > bestLen) { bestLen = runLen; bestStart = runStart; }
+  if (bestLen < 10) return null;
+
+  const counts = [];
+  for (let i = bestStart; i < bestStart + bestLen; i++) {
+    counts.push(parseInt(lines[i].trim(), 10));
+  }
+  const centers = counts.map((_, i) => i);
+  return { centers, counts };
+}
+
+function parseFallback(text) {
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || /^[#=;%!]/.test(t)) continue;
+    const nums = t.split(/[\s,;\t]+/).map(p => parseFloat(p.replace(',','.'))).filter(isFinite);
+    if (nums.length === 1) out.push(nums[0]);
+    else if (nums.length >= 2) out.push(nums[1]);
+  }
+  return out;
+}
+
+function parseFile(text) {
+  if (/CAEN|Charge\[pC\]|=== Event \d+/i.test(text)) {
+    const c = parseCAEN(text);
+    if (c.length) return { mode: 'charge', data: c };
+  }
+  const spe = parseSPE(text);
+  if (spe) return { mode: 'bins', data: spe };
+  return { mode: 'charge', data: parseFallback(text) };
+}
+
+// Get {centers, counts} from a file entry (both modes)
+function getHistogram(fileEntry, nBins, loIn, hiIn, absVal) {
+  if (fileEntry.mode === 'bins') {
+    let { centers, counts } = fileEntry.data;
+    if (loIn != null || hiIn != null) {
+      const lo = loIn ?? centers[0], hi = hiIn ?? centers[centers.length-1];
+      const idxs = centers.map((c,i) => (c >= lo && c <= hi) ? i : -1).filter(i => i >= 0);
+      centers = idxs.map(i => centers[i]);
+      counts  = idxs.map(i => counts[i]);
+    }
+    return { centers, counts, binWidth: 1 };
+  }
+  return histogram(fileEntry.data, nBins, loIn, hiIn, absVal);
+}
+
+// Ratio used to scale the background spectrum before subtracting, so the
+// comparison is fair when sample and background were acquired for different
+// durations. Falls back to 1 (raw subtraction) if either live time is unset.
+function bgRatio() {
+  const s = state.bgSampleLiveTime, b = state.bgLiveTime;
+  if (s > 0 && b > 0) return s / b;
+  return 1;
+}
+
+// Background-subtracted version of getHistogram. fileName is the key into
+// state.files — needed so we never subtract the background from itself, and
+// so we know which file is the designated background.
+// The background is always re-histogrammed using the EXACT SAME nBins/lo/hi
+// window the sample just used (derived from the sample's own bin centers, not
+// re-passed loIn/hiIn, so it stays correct even when loIn/hiIn were null and
+// auto-computed from the sample's own data range) — this guarantees the two
+// histograms line up bin-for-bin before subtracting.
+function getHistogramSub(fileEntry, fileName, nBins, loIn, hiIn, absVal) {
+  const base = getHistogram(fileEntry, nBins, loIn, hiIn, absVal);
+  if (!state.bgSubtract || !state.bgFile || fileName === state.bgFile) return base;
+  const bgFe = state.files[state.bgFile];
+  if (!bgFe || !base.centers.length) return base;
+
+  const n = base.centers.length;
+  const bw = n > 1 ? (base.centers[1] - base.centers[0]) : (base.binWidth || 1);
+  const loActual = base.centers[0] - bw / 2;
+  const hiActual = base.centers[n - 1] + bw / 2;
+  const bgHist = getHistogram(bgFe, n, loActual, hiActual, absVal);
+
+  const ratio = bgRatio();
+  const counts = base.counts.map((c, i) => Math.max(0, c - (bgHist.counts[i] || 0) * ratio));
+  return { centers: base.centers, counts, binWidth: base.binWidth };
+}
+
+// Raw values array for stats — for bins mode returns weighted sample (capped at 100k) to avoid OOM
+function getRawValues(fileEntry, absVal) {
+  if (fileEntry.mode === 'bins') {
+    const { centers, counts } = fileEntry.data;
+    const total = counts.reduce((a,b)=>a+b,0);
+    if (total <= 100000) {
+      // small enough to expand
+      const vals = [];
+      centers.forEach((c, i) => { for (let k = 0; k < counts[i]; k++) vals.push(c); });
+      return vals;
+    }
+    // large: return one value per bin (weighted stats computed separately)
+    return centers.slice();
+  }
+  return absVal ? fileEntry.data.map(Math.abs) : fileEntry.data.slice();
+}
+
+// Weighted statistics for bins-mode files (accurate regardless of count magnitude)
+function getBinnedStats(fileEntry, absVal) {
+  if (fileEntry.mode !== 'bins') return null;
+  const { centers, counts } = fileEntry.data;
+  let n=0, sumW=0, sumWx=0, mn=Infinity, mx=-Infinity;
+  centers.forEach((c, i) => {
+    const w = counts[i];
+    n += w; sumW += w; sumWx += w*c;
+    if (w > 0) { if (c < mn) mn = c; if (c > mx) mx = c; }
+  });
+  return { n, min: mn===Infinity?0:mn, max: mx===-Infinity?0:mx, mean: sumW>0?sumWx/sumW:0 };
+}
+
+// X-axis label
+function xAxisLabel(fileEntry, calibration) {
+  if (calibration) return 'Energy [keV]';
+  return (fileEntry && fileEntry.mode === 'bins') ? 'Channel (bin)' : 'Charge [pC]';
+}
+
+/* ═══════════════════════════════════════════════
+   HISTOGRAM
+═══════════════════════════════════════════════ */
+function histogram(raw, nBins, loIn, hiIn, absVal) {
+  const vals = absVal ? raw.map(Math.abs) : raw.slice();
+  let lo = loIn, hi = hiIn;
+  if (lo == null) { lo = vals[0]; for (const v of vals) if (v < lo) lo = v; }
+  if (hi == null) { hi = vals[0]; for (const v of vals) if (v > hi) hi = v; }
+  if (lo === hi) hi = lo + 1;
+  const w = (hi - lo) / nBins;
+  const counts = new Array(nBins).fill(0);
+  const centers = Array.from({length: nBins}, (_, i) => lo + (i + 0.5) * w);
+  for (const v of vals) {
+    if (v < lo || v > hi) continue;
+    let i = Math.floor((v - lo) / w);
+    if (i >= nBins) i = nBins - 1;
+    counts[i]++;
+  }
+  return { centers, counts, binWidth: w };
+}
+
+function arrayStats(arr) {
+  if (!arr.length) return { min: 0, max: 0, mean: 0, n: 0 };
+  let min = arr[0], max = arr[0], sum = 0;
+  for (const v of arr) { if (v < min) min = v; if (v > max) max = v; sum += v; }
+  return { min, max, mean: sum / arr.length, n: arr.length };
+}
+
+/* ═══════════════════════════════════════════════
+   SHARED CHART HELPERS
+═══════════════════════════════════════════════ */
+function sciAxisDefaults(titleText) {
+  return {
+    grid: { color: '#e0e0e0', lineWidth: 1 },
+    border: { color: '#111', width: 1 },
+    ticks: { color: '#333', font: { family: 'Arial, sans-serif', size: 11 }, maxRotation: 0, padding: 3 },
+    title: { display: true, text: titleText, color: '#222', font: { family: 'Arial, sans-serif', size: 11, weight: 'normal' }, padding: { top: 2, bottom: 2 } },
+  };
+}
+function sciTooltip(titleSuffix) {
+  return {
+    backgroundColor: '#f8f8f8',
+    borderColor: '#888', borderWidth: 1,
+    titleColor: '#111', bodyColor: '#444',
+    titleFont: { family: 'Arial, sans-serif', size: 11 },
+    bodyFont:  { family: 'Arial, sans-serif', size: 11 },
+    padding: 6,
+    callbacks: {
+      title: i => i[0].label + (titleSuffix ? ' ' + titleSuffix : ''),
+      label: i => 'counts: ' + i.parsed.y,
+    }
+  };
+}
+
+/* ═══════════════════════════════════════════════
+   SMOOTHING STATE (declared early — used in updateChart)
+═══════════════════════════════════════════════ */
+const smoothState = { enabled: false, width: 2 };
+
+/* ═══════════════════════════════════════════════
+   SPECTRUM CHART
+═══════════════════════════════════════════════ */
+function buildChart() {
+  const ctx = document.getElementById('spectrumChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      resizeDelay: 100, devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      normalized: false,
+      datasets: { bar: { categoryPercentage: 1.0, barPercentage: 1.0, minBarLength: 1 } },
+      plugins: {
+        legend: { labels: { color: '#333', font: { family: 'Arial, sans-serif', size: 11 }, boxWidth: 12, padding: 12 } },
+        tooltip: sciTooltip('pC'),
+      },
+      scales: {
+        x: { ...sciAxisDefaults('Charge [pC]'), ticks: { ...sciAxisDefaults('').ticks, maxTicksLimit: 10 } },
+        y: { type: 'linear', ...sciAxisDefaults('Counts'), ticks: { ...sciAxisDefaults('').ticks, maxTicksLimit: 7 } },
+      }
+    }
+  });
+}
+
+const GRAYS = ['rgba(30,80,180,0.75)','rgba(180,50,30,0.65)','rgba(30,140,60,0.65)','rgba(140,60,180,0.65)','rgba(180,130,20,0.65)'];
+const GBORDERS = ['#1e4ab0','#b43020','#1a8030','#7830b0','#a07810'];
+
+function updateChart() {
+  try {
+    if (!chart) buildChart();
+    const nBins = Math.max(5, Math.min(2000, state.bins));
+    const entries = Object.entries(state.files);
+    const firstEntry = entries.length ? entries[0][1] : null;
+    const cal = state.calibration;
+
+    let globalLo = state.xMin, globalHi = state.xMax;
+    if (globalLo == null || globalHi == null) {
+      for (const [, fe] of entries) {
+        const vals = getRawValues(fe, state.absValue);
+        for (const v of vals) {
+          if (globalLo == null || v < globalLo) globalLo = v;
+          if (globalHi == null || v > globalHi) globalHi = v;
+        }
+      }
+    }
+    // Build shared uniform labels from global range (ensures all datasets align on the same x-axis)
+    const sharedCenters = [];
+    if (globalLo !== null && globalHi !== null) {
+      const w = (globalHi - globalLo) / nBins;
+      for (let i = 0; i < nBins; i++) sharedCenters.push(globalLo + (i + 0.5) * w);
+    }
+    const sharedLabels = sharedCenters.length
+      ? (cal ? sharedCenters.map(q => (cal.a * q + cal.b).toFixed(2))
+             : (firstEntry && firstEntry.mode === 'bins'
+                ? sharedCenters.map(c => String(Math.round(c)))
+                : sharedCenters.map(c => c.toFixed(3))))
+      : [];
+
+    const datasets = [];
+    let idx = 0;
+    for (const [name, fe] of entries) {
+      const { counts } = getHistogramSub(fe, name, nBins, globalLo, globalHi, state.absValue);
+      const smoothedCounts = smoothState.enabled
+        ? gaussianSmooth(counts, smoothState.width)
+        : counts;
+      datasets.push({
+        label: name,
+        data: smoothedCounts,
+        backgroundColor: GRAYS[idx % GRAYS.length],
+        borderColor: GBORDERS[idx % GBORDERS.length],
+        borderWidth: 1,
+        barPercentage: 1.0,
+        categoryPercentage: 1.0,
+      });
+      idx++;
+    }
+    chart.data.labels = sharedLabels || [];
+    chart.data.datasets = datasets;
+    lastSpectrumCenters = sharedCenters.length ? sharedCenters : null;
+    chart.options.scales.y.type = state.logY ? 'logarithmic' : 'linear';
+    chart.options.scales.y.min = state.yMin !== null ? state.yMin : undefined;
+    chart.options.scales.y.max = state.yMax !== null ? state.yMax : undefined;
+    const xLabel = xAxisLabel(firstEntry, cal);
+    chart.options.scales.x.title.text = xLabel;
+    const xUnit = cal ? 'keV' : (firstEntry && firstEntry.mode === 'bins' ? '' : ' pC');
+    chart.options.plugins.tooltip.callbacks.title = i => i[0].label + xUnit;
+    chart.update('none');
+    updateStats();
+  } catch(err) { showError('Chart error: ' + err.message); console.error(err); }
+}
+
+function updateStats() {
+  const entries = Object.entries(state.files);
+  const firstEntry = entries.length ? entries[0][1] : null;
+  const isBins = firstEntry && firstEntry.mode === 'bins';
+  const unit = isBins ? '' : ' pC';
+
+  if (!entries.length) { ['statPoints','statMin','statMax','statMean'].forEach(id => document.getElementById(id).textContent = '—'); return; }
+
+  // Use efficient weighted stats for bins-mode; raw array stats for charge-mode
+  let n=0, mn=Infinity, mx=-Infinity, wsum=0, wxsum=0;
+  for (const [, fe] of entries) {
+    if (fe.mode === 'bins') {
+      const bs = getBinnedStats(fe, state.absValue);
+      if (bs) { n+=bs.n; if(bs.min<mn) mn=bs.min; if(bs.max>mx) mx=bs.max; wsum+=bs.n; wxsum+=bs.n*bs.mean; }
+    } else {
+      const vals = getRawValues(fe, state.absValue);
+      for (const v of vals) { n++; if(v<mn) mn=v; if(v>mx) mx=v; wsum++; wxsum+=v; }
+    }
+  }
+  if (n===0) { ['statPoints','statMin','statMax','statMean'].forEach(id => document.getElementById(id).textContent = '—'); return; }
+  const mean = wsum>0 ? wxsum/wsum : 0;
+  document.getElementById('statPoints').textContent = n.toLocaleString();
+  document.getElementById('statMin').textContent    = (mn===Infinity?0:mn).toFixed(isBins ? 0 : 3) + unit;
+  document.getElementById('statMax').textContent    = (mx===-Infinity?0:mx).toFixed(isBins ? 0 : 3) + unit;
+  document.getElementById('statMean').textContent   = mean.toFixed(isBins ? 1 : 3) + unit;
+}
+
+/* ═══════════════════════════════════════════════
+   CALIBRATION CHART
+═══════════════════════════════════════════════ */
+function buildCalibChart() {
+  const ctx = document.getElementById('calibChart').getContext('2d');
+  calibChartObj = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      resizeDelay: 100,
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      normalized: false,
+      datasets: { bar: { categoryPercentage: 1.0, barPercentage: 1.0, minBarLength: 1 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#fff', borderColor: '#ccc', borderWidth: 1,
+          titleColor: '#111', bodyColor: '#555',
+          titleFont: { family: 'Courier New', size: 11 },
+          bodyFont:  { family: 'Courier New', size: 11 },
+          callbacks: {
+            title: i => i[0].label + ' pC',
+            label: i => 'counts: ' + i.parsed.y,
+          }
+        },
+        // marker lines drawn via afterDraw plugin
+      },
+      scales: {
+        x: {
+          grid: { color: '#eee' },
+          ticks: { color: '#999', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 12, maxRotation: 0 },
+          title: { display: true, text: 'Charge [pC]', color: '#aaa', font: { family: 'Courier New', size: 11 } },
+        },
+        y: {
+          type: 'linear',
+          grid: { color: '#eee' },
+          ticks: { color: '#999', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 7 },
+          title: { display: true, text: 'Counts', color: '#aaa', font: { family: 'Courier New', size: 11 } },
+        }
+      },
+      onClick(evt, elements, ch) {
+        handleCalibChartClick(evt.native || evt, ch);
+      }
+    }
+  });
+  // Plugin: draw vertical lines and Gaussian overlays for peaks
+  Chart.register({
+    id: 'peakLines',
+    afterDraw(ch) {
+      if (ch.canvas.id !== 'calibChart') return;
+      const { ctx: c, chartArea, scales } = ch;
+      if (!chartArea) return;
+      const meta = ch.getDatasetMeta(0);
+      const labels = ch.data.labels;
+      if (!labels || !labels.length || !meta || !meta.data.length) return;
+
+      // Build a Q->pixelX lookup from actual bar positions
+      function qToPixel(q) {
+        // Find the two nearest bars and interpolate
+        let lo = -1, hi = -1, loDist = Infinity, hiDist = Infinity;
+        for (let i=0; i<labels.length; i++) {
+          const lq = parseFloat(labels[i]);
+          const d = lq - q;
+          if (d <= 0 && Math.abs(d) < loDist) { loDist = Math.abs(d); lo = i; }
+          if (d >= 0 && Math.abs(d) < hiDist) { hiDist = Math.abs(d); hi = i; }
+        }
+        if (lo < 0 && hi >= 0) return meta.data[hi].x;
+        if (hi < 0 && lo >= 0) return meta.data[lo].x;
+        if (lo === hi) return meta.data[lo].x;
+        const qLo = parseFloat(labels[lo]), qHi = parseFloat(labels[hi]);
+        const t = (qHi > qLo) ? (q - qLo) / (qHi - qLo) : 0;
+        return meta.data[lo].x + t * (meta.data[hi].x - meta.data[lo].x);
+      }
+
+      // Y axis: counts -> pixel
+      function yToPixel(count) {
+        return scales.y.getPixelForValue(count);
+      }
+
+      for (const p of state.peaks) {
+        const x = qToPixel(p.q);
+
+        // Draw Gaussian curve overlay if we have fit data
+        if (p.amp && p.sigma && p.gaussXs) {
+          c.save();
+          c.beginPath();
+          const steps = 80;
+          const qMin = p.q - p.sigma * 3;
+          const qMax = p.q + p.sigma * 3;
+          let first = true;
+          for (let s=0; s<=steps; s++) {
+            const q = qMin + (qMax-qMin)*s/steps;
+            const y = p.amp * Math.exp(-0.5*((q-p.q)/p.sigma)**2);
+            const px = qToPixel(q);
+            const py = yToPixel(y);
+            if (px < chartArea.left || px > chartArea.right) continue;
+            if (first) { c.moveTo(px, py); first=false; } else c.lineTo(px, py);
+          }
+          c.strokeStyle = 'rgba(180,0,0,0.55)';
+          c.lineWidth = 1.5;
+          c.setLineDash([]);
+          c.stroke();
+          c.restore();
+        }
+
+        // Vertical line at mu
+        c.save();
+        c.beginPath();
+        c.moveTo(x, chartArea.top);
+        c.lineTo(x, chartArea.bottom);
+        c.strokeStyle = '#c00';
+        c.lineWidth = 1.5;
+        c.setLineDash([4, 3]);
+        c.stroke();
+        // label
+        c.setLineDash([]);
+        c.font = 'bold 10px Courier New';
+        c.fillStyle = '#c00';
+        c.textAlign = 'center';
+        const label = p.e ? `${p.e} keV` : `μ=${p.q.toFixed(3)}`;
+        c.fillText(label, x, chartArea.top + 12);
+        c.restore();
+
+        // FWHM double arrow
+        if (p.fwhm && p.leftQ != null && p.rightQ != null && p.halfMax != null) {
+          const xL  = qToPixel(p.leftQ);
+          const xR  = qToPixel(p.rightQ);
+          const yHM = yToPixel(p.halfMax);
+          if (yHM > chartArea.top && yHM < chartArea.bottom) {
+            c.save();
+            c.strokeStyle = '#e05000'; c.fillStyle = '#e05000';
+            c.lineWidth = 2; c.setLineDash([]);
+            // horizontal bar
+            c.beginPath(); c.moveTo(xL, yHM); c.lineTo(xR, yHM); c.stroke();
+            // left arrowhead
+            const aw = 6;
+            c.beginPath(); c.moveTo(xL, yHM); c.lineTo(xL+aw, yHM-aw/2); c.lineTo(xL+aw, yHM+aw/2); c.closePath(); c.fill();
+            // right arrowhead
+            c.beginPath(); c.moveTo(xR, yHM); c.lineTo(xR-aw, yHM-aw/2); c.lineTo(xR-aw, yHM+aw/2); c.closePath(); c.fill();
+            // label
+            c.font = '10px Courier New'; c.textAlign = 'center';
+            c.fillText(`FWHM=${p.fwhm.toFixed(3)} pC`, (xL+xR)/2, yHM - 7);
+            c.restore();
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateCalibChart() {
+  if (!calibChartObj) buildCalibChart();
+  const hasData = Object.keys(state.files).length > 0;
+  document.getElementById('calibHintText').textContent = hasData
+    ? 'Click on a peak to mark it, then assign an energy below.'
+    : 'Load data in the Spectrum tab first.';
+
+  if (!hasData) { calibChartObj.data.labels = []; calibChartObj.data.datasets = []; lastCalibCenters = null; calibChartObj.update('none'); return; }
+
+  const activeName = state.files[state.activeFile] ? state.activeFile : Object.keys(state.files)[0];
+  const fe = state.files[activeName];
+  if (!fe) return;
+  const nBins = Math.max(5, Math.min(2000, state.calibBins));
+  const absVal = state.calibAbsValue;
+  const { centers, counts: rawCounts } = getHistogramSub(fe, activeName, nBins, state.calibXMin, state.calibXMax, absVal);
+  const counts = smoothState.enabled ? gaussianSmooth(rawCounts, smoothState.width) : rawCounts;
+  lastCalibCenters = centers;
+  calibChartObj.data.labels = centers.map(c => fe.mode === 'bins' ? String(Math.round(c)) : c.toFixed(3));
+  calibChartObj.options.scales.x.title.text = xAxisLabel(fe, state.calibration);
+  calibChartObj.options.scales.y.min = state.calibYMin !== null ? state.calibYMin : undefined;
+  calibChartObj.options.scales.y.max = state.calibYMax !== null ? state.calibYMax : undefined;
+  calibChartObj.data.datasets = [{
+    label: 'counts',
+    data: counts,
+    backgroundColor: 'rgba(30,80,180,0.7)',
+    borderColor: '#1e4ab0',
+    borderWidth: 1,
+    barPercentage: 1.0,
+    categoryPercentage: 1.0,
+  }];
+  calibChartObj.update('none');
+}
+
+/* ═══════════════════════════════════════════════
+   GAUSSIAN FITTING
+═══════════════════════════════════════════════ */
+function gaussianFit(xs, ys) {
+  // --- Seed from weighted moments ---
+  let sw=0, swx=0, swxx=0, maxY=0, amp0=0;
+  for (let i=0;i<xs.length;i++) {
+    const w = Math.max(ys[i], 0);
+    if (ys[i]>maxY){ maxY=ys[i]; amp0=ys[i]; }
+    sw+=w; swx+=w*xs[i]; swxx+=w*xs[i]*xs[i];
+  }
+  let mu    = sw>0 ? swx/sw : xs[Math.floor(xs.length/2)];
+  let sigma = sw>0 ? Math.sqrt(Math.max(swxx/sw - mu*mu, 1e-10)) : (xs[xs.length-1]-xs[0])/4;
+  let amp   = amp0 || 1;
+  if (sigma < 1e-10) sigma = (xs[xs.length-1]-xs[0])/4;
+
+  // --- Levenberg-Marquardt (3-parameter: amp, mu, sigma) ---
+  // Model: f(x) = amp * exp(-0.5*((x-mu)/sigma)^2)
+  // Jacobian columns: df/damp, df/dmu, df/dsigma
+  let lambda = 1e-3;
+  const ITER = 200;
+  let prevLoss = Infinity;
+
+  for (let iter=0; iter<ITER; iter++) {
+    // Build J^T J and J^T r
+    let JtJ = [[0,0,0],[0,0,0],[0,0,0]];
+    let Jtr = [0,0,0];
+    let loss = 0;
+    for (let i=0;i<xs.length;i++) {
+      const z   = (xs[i]-mu)/sigma;
+      const e   = Math.exp(-0.5*z*z);
+      const f   = amp*e;
+      const r   = f - ys[i];
+      loss += r*r;
+      // partial derivatives
+      const da  = e;
+      const dmu = amp*e*(z/sigma);
+      const dsg = amp*e*(z*z/sigma);
+      const J   = [da, dmu, dsg];
+      for (let a=0;a<3;a++) {
+        Jtr[a] += J[a]*r;
+        for (let b=0;b<3;b++) JtJ[a][b] += J[a]*J[b];
+      }
+    }
+
+    // Damped normal equations: (J^T J + lambda*diag(J^T J)) * delta = -J^T r
+    const D = [[JtJ[0][0]*(1+lambda),JtJ[0][1],JtJ[0][2]],
+               [JtJ[1][0],JtJ[1][1]*(1+lambda),JtJ[1][2]],
+               [JtJ[2][0],JtJ[2][1],JtJ[2][2]*(1+lambda)]];
+    let delta;
+    try { delta = solve3x3(D, Jtr.map(v=>-v)); } catch(e) { break; }
+
+    const newAmp   = amp   + delta[0];
+    const newMu    = mu    + delta[1];
+    const newSigma = sigma + delta[2];
+
+    // Evaluate new loss
+    if (newAmp > 0 && Math.abs(newSigma) > 1e-10) {
+      let newLoss = 0;
+      for (let i=0;i<xs.length;i++) {
+        const z = (xs[i]-newMu)/newSigma;
+        const r = newAmp*Math.exp(-0.5*z*z) - ys[i];
+        newLoss += r*r;
+      }
+      if (newLoss < loss) {
+        amp=newAmp; mu=newMu; sigma=newSigma;
+        lambda = Math.max(lambda/10, 1e-12);
+        if (Math.abs(loss-newLoss) < 1e-10*(1+loss)) break; // converged
+        loss = newLoss;
+      } else {
+        lambda = Math.min(lambda*10, 1e8);
+      }
+    } else {
+      lambda = Math.min(lambda*10, 1e8);
+    }
+  }
+
+  // R² of fit
+  const mean = ys.reduce((a,b)=>a+b,0)/ys.length;
+  let ssTot=0, ssRes=0;
+  for (let i=0;i<xs.length;i++){
+    const g=amp*Math.exp(-0.5*((xs[i]-mu)/sigma)**2);
+    ssTot+=(ys[i]-mean)**2; ssRes+=(ys[i]-g)**2;
+  }
+  const r2 = ssTot>0 ? 1-ssRes/ssTot : 0;
+  return { amp, mu, sigma: Math.abs(sigma), r2 };
+}
+
+const GAUSSIAN_FWHM_FACTOR = 2 * Math.sqrt(2 * Math.LN2);
+
+function fwhmFromGaussianFit(mu, sigma, amp) {
+  const s = Math.abs(sigma);
+  if (!Number.isFinite(mu) || !Number.isFinite(s) || s <= 0) return null;
+  const fwhm = GAUSSIAN_FWHM_FACTOR * s;
+  return {
+    fwhm,
+    leftQ: mu - fwhm / 2,
+    rightQ: mu + fwhm / 2,
+    halfMax: Number.isFinite(amp) ? amp / 2 : null,
+  };
+}
+
+// Robust peak localisation: starting from the clicked bin, this "climbs"
+// toward higher counts (checking left/right neighbours) until it reaches a
+// genuine local summit — instead of just scanning a fixed window around the
+// click. Climbing is done on a lightly-smoothed copy of the spectrum so a
+// single noisy (Poisson) bin can't divert it onto a statistical fluke
+// instead of the real peak. The result: clicking anywhere on the same
+// peak's slope — a few pixels left, a few pixels right — always converges
+// on the same bin, so re-picking "the same peak" no longer gives a
+// different fit / different R² depending on exactly where you clicked.
+// `maxSteps` bounds how far the climb may wander from the click, so an
+// accidental click far from any peak doesn't snap to an unrelated one.
+function findPeakIndex(counts, startIdx, maxSteps) {
+  const n = counts.length;
+  if (n === 0) return startIdx;
+  const nav = gaussianSmooth(counts, 1.2);
+
+  let idx = Math.max(0, Math.min(n - 1, startIdx));
+  for (let step = 0; step < maxSteps; step++) {
+    let bestIdx = idx, bestVal = nav[idx];
+    if (idx > 0 && nav[idx - 1] > bestVal)     { bestIdx = idx - 1; bestVal = nav[idx - 1]; }
+    if (idx < n - 1 && nav[idx + 1] > bestVal) { bestIdx = idx + 1; bestVal = nav[idx + 1]; }
+    if (bestIdx === idx) break; // reached a summit on the smoothed curve
+    idx = bestIdx;
+  }
+
+  // The smoothed summit may sit a bin off from the true (raw) maximum —
+  // snap to the tallest raw bin in a small neighbourhood around it.
+  const refineWin = 2;
+  let bestRaw = idx;
+  for (let i = Math.max(0, idx - refineWin); i <= Math.min(n - 1, idx + refineWin); i++) {
+    if (counts[i] > counts[bestRaw]) bestRaw = i;
+  }
+  return bestRaw;
+}
+
+function handleCalibChartClick(evt, ch) {
+  const labels = ch.data.labels;
+  if (!labels || !labels.length) return;
+  const meta = ch.getDatasetMeta(0);
+  if (!meta || !meta.data.length) return;
+  const counts = ch.data.datasets[0].data;
+  const rect = ch.canvas.getBoundingClientRect();
+  const xPx = evt.clientX - rect.left;
+
+  // 1. Find clicked bar index by comparing pixel positions of bar centres
+  let clickedIdx = 0, bestDist = Infinity;
+  meta.data.forEach((bar, i) => {
+    const d = Math.abs(bar.x - xPx);
+    if (d < bestDist) { bestDist = d; clickedIdx = i; }
+  });
+
+  // 2. Climb from the click to the true peak summit (see findPeakIndex) —
+  // deterministic regardless of small differences in exactly where you
+  // clicked, as long as you're on the same peak's slope.
+  const searchWin = Math.max(1, parseInt(document.getElementById('calibWindow').value) || 3);
+  let peakIdx = findPeakIndex(counts, clickedIdx, searchWin);
+
+  // 3. Estimate a local fit window from the empirical half-height width.
+  // The displayed FWHM is not taken from this walk; it is computed from the
+  // fitted Gaussian sigma below: FWHM = 2*sqrt(2*ln(2))*sigma.
+  const peakMax = counts[peakIdx];
+  const halfMax = peakMax / 2;
+
+  // Walk left until we drop below half max
+  let leftIdx = peakIdx;
+  while (leftIdx > 0 && counts[leftIdx] > halfMax) leftIdx--;
+
+  // Walk right until we drop below half max
+  let rightIdx = peakIdx;
+  while (rightIdx < labels.length - 1 && counts[rightIdx] > halfMax) rightIdx++;
+
+  // Fit window = 1.5x the empirical half-height width on each side, at least 2 bins
+  const fwhmBins = Math.max(2, rightIdx - leftIdx);
+  const fitWin = Math.max(2, Math.round(fwhmBins * 1.5));
+  const fitLo = Math.max(0, peakIdx - fitWin);
+  const fitHi = Math.min(labels.length - 1, peakIdx + fitWin);
+
+  const xs = [], ys = [];
+  for (let i = fitLo; i <= fitHi; i++) { xs.push(parseFloat(labels[i])); ys.push(counts[i]); }
+
+  if (xs.length < 4) {
+    // fallback: just use the bar centre
+    const q = parseFloat(labels[peakIdx]);
+    const info = document.getElementById('gaussFitInfo');
+    info.style.display = '';
+    info.innerHTML = `μ = ${q.toFixed(4)} pC (no FWHM — too few points for Gaussian fit)`;
+    addPeak(q, null, null, null, null, null, null);
+    showResolution(q, null, null, null, null);
+    showNetArea(state.peaks[state.peaks.length - 1]);
+    return;
+  }
+
+  const fit = gaussianFit(xs, ys);
+
+  // Sanity check: if fitted mu is wildly outside the window, reject the fit.
+  const qMin = xs[0], qMax = xs[xs.length-1];
+  const fitOk = fit.mu >= qMin && fit.mu <= qMax && Number.isFinite(fit.sigma) && fit.sigma > 0;
+  const mu = fitOk ? fit.mu : parseFloat(labels[peakIdx]);
+  const fwhmInfo = fitOk ? fwhmFromGaussianFit(mu, fit.sigma, fit.amp) : null;
+
+  if (!fwhmInfo) {
+    const info = document.getElementById('gaussFitInfo');
+    info.style.display = '';
+    info.innerHTML = `μ = ${mu.toFixed(4)} pC (no FWHM — Gaussian fit rejected)`;
+    addPeak(mu, null, null, null, null, null, null);
+    showResolution(mu, null, null, null, null);
+    showNetArea(state.peaks[state.peaks.length - 1]);
+    return;
+  }
+
+  // Show fit info
+  const info = document.getElementById('gaussFitInfo');
+  info.style.display = '';
+  info.innerHTML = `μ = ${mu.toFixed(4)} pC<br>σ = ${Math.abs(fit.sigma).toFixed(4)} pC<br>FWHM = 2√(2 ln 2)·σ = ${fwhmInfo.fwhm.toFixed(4)} pC<br>R² = ${fit.r2.toFixed(4)}<br><span style="color:#888">fit window: ±${fitWin} bins</span>`;
+
+  addPeak(mu, fit.sigma, fit.amp, fit.r2, xs, ys, fit, fwhmInfo.fwhm, fwhmInfo.leftQ, fwhmInfo.rightQ, fwhmInfo.halfMax);
+  showResolution(mu, fwhmInfo.fwhm, fwhmInfo.leftQ, fwhmInfo.rightQ, fwhmInfo.halfMax);
+  showNetArea(state.peaks[state.peaks.length - 1]);
+}
+
+/* ═══════════════════════════════════════════════
+   PEAK MANAGEMENT
+═══════════════════════════════════════════════ */
+function addPeak(q, sigma, amp, r2, xs, ys, fitObj, fwhm, leftQ, rightQ, halfMax) {
+  // Remove any existing peak too close (within 1 sigma or 5% of range)
+  const range = calibChartObj && calibChartObj.data.labels.length > 1
+    ? parseFloat(calibChartObj.data.labels[calibChartObj.data.labels.length-1]) - parseFloat(calibChartObj.data.labels[0])
+    : 1;
+  const minSep = sigma ? sigma*1.5 : range*0.02;
+  const existing = state.peaks.findIndex(p => Math.abs(p.q - q) < minSep);
+  if (existing >= 0) state.peaks.splice(existing, 1);  // replace if re-clicking same peak
+
+  state.peaks.push({
+    q,
+    e: null,
+    sigma: Number.isFinite(sigma) ? sigma : null,
+    amp: Number.isFinite(amp) ? amp : null,
+    r2: Number.isFinite(r2) ? r2 : null,
+    gaussXs: xs || null,
+    gaussYs: ys || null,
+    fwhm: Number.isFinite(fwhm) ? fwhm : null,
+    leftQ: Number.isFinite(leftQ) ? leftQ : null,
+    rightQ: Number.isFinite(rightQ) ? rightQ : null,
+    halfMax: Number.isFinite(halfMax) ? halfMax : null,
+  });
+  renderPeakTable();
+  if (calibChartObj) calibChartObj.update('none');
+}
+
+function removePeak(idx) {
+  state.peaks.splice(idx, 1);
+  renderPeakTable();
+  if (calibChartObj) calibChartObj.update('none');
+  updateFitBtn();
+}
+
+function renderPeakTable() {
+  const tbody = document.getElementById('peakTableBody');
+  document.getElementById('peakCount').textContent = state.peaks.length;
+  if (!state.peaks.length) {
+    tbody.innerHTML = '<tr id="noPeaksRow"><td colspan="3" style="color:var(--muted);padding:8px;">No peaks marked.</td></tr>';
+    updateFitBtn(); return;
+  }
+  tbody.innerHTML = '';
+  state.peaks.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--muted)">${p.q.toFixed(3)}</td>
+      <td><input type="number" placeholder="keV" step="any" value="${p.e !== null ? p.e : ''}" data-idx="${i}"></td>
+      <td><button class="peak-del" data-idx="${i}">×</button></td>`;
+    tbody.appendChild(tr);
+  });
+  // events
+  tbody.querySelectorAll('input[type="number"]').forEach(inp => {
+    inp.addEventListener('change', function() {
+      const idx = parseInt(this.dataset.idx);
+      state.peaks[idx].e = this.value !== '' ? parseFloat(this.value) : null;
+      updateFitBtn();
+      if (calibChartObj) calibChartObj.update('none');
+    });
+  });
+  tbody.querySelectorAll('.peak-del').forEach(btn => {
+    btn.addEventListener('click', function() { removePeak(parseInt(this.dataset.idx)); });
+  });
+  updateFitBtn();
+}
+
+function updateFitBtn() {
+  const valid = state.peaks.filter(p => p.e !== null);
+  document.getElementById('fitCalibBtn').disabled = valid.length < 2;
+}
+
+function showResolution(mu, fwhm, leftQ, rightQ, halfMax) {
+  const panel = document.getElementById('resolutionPanel');
+  const box   = document.getElementById('resolutionBox');
+  if (!mu || !fwhm || mu === 0) { panel.style.display = 'none'; return; }
+  const R = (fwhm / mu) * 100;
+  const cal = state.calibration;
+  let extraHtml = '';
+  if (cal) {
+    const muKeV   = cal.a * mu + cal.b;
+    const fwhmKeV = cal.a * fwhm;
+    const RkeV    = Math.abs(fwhmKeV / muKeV) * 100;
+    extraHtml = `<br><span style="color:var(--muted);font-size:10px;">In energy:</span><br>
+      \u03bc = ${muKeV.toFixed(2)} keV<br>
+      FWHM = ${Math.abs(fwhmKeV).toFixed(3)} keV<br>
+      <b>R = ${RkeV.toFixed(2)} %</b>`;
+  }
+  box.innerHTML = `
+    \u03bc = ${mu.toFixed(4)} pC<br>
+    FWHM = ${fwhm.toFixed(4)} pC <span style="color:var(--muted);font-size:10px;">(2√(2 ln 2)·σ)</span><br>
+    <b style="font-size:13px;">R = ${R.toFixed(2)} %</b>
+    ${extraHtml}`;
+  panel.style.display = '';
+}
+
+/* ═══════════════════════════════════════════════
+   LINEAR REGRESSION
+═══════════════════════════════════════════════ */
+function linearRegression(xs, ys) {
+  const n = xs.length;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let i = 0; i < n; i++) { sumX += xs[i]; sumY += ys[i]; sumXY += xs[i]*ys[i]; sumXX += xs[i]*xs[i]; }
+  const a = (n*sumXY - sumX*sumY) / (n*sumXX - sumX*sumX);
+  const b = (sumY - a*sumX) / n;
+  // R²
+  const meanY = sumY / n;
+  let ssTot = 0, ssRes = 0;
+  for (let i = 0; i < n; i++) { ssTot += (ys[i]-meanY)**2; ssRes += (ys[i] - (a*xs[i]+b))**2; }
+  const r2 = 1 - ssRes/ssTot;
+  return { a, b, r2 };
+}
+
+function fitCalibration() {
+  const valid = state.peaks.filter(p => p.e !== null);
+  if (valid.length < 2) return;
+  const xs = valid.map(p => p.q);
+  const ys = valid.map(p => p.e);
+  const { a, b, r2 } = linearRegression(xs, ys);
+  state.calibration = { a, b, r2, source: 'fit' };
+  showCalibResult(a, b, r2);
+}
+
+function showCalibResult(a, b, r2) {
+  const panel = document.getElementById('calibResultPanel');
+  const box   = document.getElementById('calibResultBox');
+  panel.style.display = '';
+  const bSign = b >= 0 ? '+' : '−';
+  box.innerHTML = `<div class="eq">E = ${a.toFixed(4)} · Q ${bSign} ${Math.abs(b).toFixed(4)}</div><div class="r2">R² = ${r2 !== undefined ? r2.toFixed(6) : 'N/A'}</div>`;
+  updateCalibStatusBar(a, b, r2);
+  document.getElementById('nuclidePanel').style.display = '';
+}
+
+function updateCalibStatusBar(a, b, r2) {
+  document.getElementById('calibStatus').textContent = state.calibration ? state.calibration.source === 'fit' ? 'Linear fit' : 'Manual' : 'None';
+  document.getElementById('calibA').textContent = a !== undefined ? a.toFixed(4) + ' keV/pC' : '—';
+  document.getElementById('calibB').textContent = b !== undefined ? (b >= 0 ? '+' : '') + b.toFixed(4) + ' keV' : '—';
+  document.getElementById('calibR2').textContent = r2 !== undefined ? r2.toFixed(6) : '—';
+}
+
+/* ═══════════════════════════════════════════════
+   ERROR / SUCCESS
+═══════════════════════════════════════════════ */
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 8000);
+}
+function showManualSuccess() {
+  const el = document.getElementById('manualSuccessMsg');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+/* ═══════════════════════════════════════════════
+   FILE LIST
+═══════════════════════════════════════════════ */
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  const panel = document.getElementById('fileListPanel');
+  const names = Object.keys(state.files);
+  updateBgFileSelect();
+  if (!names.length) { panel.style.display = 'none'; return; }
+  panel.style.display = ''; list.innerHTML = '';
+  names.forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'file-item' + (name === state.activeFile ? ' active' : '');
+    const dot = document.createElement('span'); dot.className = 'dot';
+    const lbl = document.createElement('span'); lbl.className = 'file-name'; lbl.textContent = name; lbl.title = name;
+    const badge = document.createElement('span');
+    const fe = state.files[name];
+    badge.textContent = fe && fe.mode === 'bins' ? 'BIN' : 'Q';
+    badge.style.cssText = 'font-size:9px;padding:1px 3px;border:1px solid currentColor;opacity:0.6;flex-shrink:0;';
+    const rm  = document.createElement('button'); rm.className = 'file-remove'; rm.textContent = '×';
+    item.append(dot, lbl, badge);
+    if (name === state.bgFile) {
+      const bgBadge = document.createElement('span');
+      bgBadge.textContent = 'BG';
+      bgBadge.title = state.bgSubtract ? 'Background (subtracting)' : 'Background (not subtracted)';
+      bgBadge.style.cssText = `font-size:9px;padding:1px 3px;border:1px solid var(--btn-blue);flex-shrink:0;color:var(--btn-blue);${state.bgSubtract ? 'background:rgba(26,74,138,0.15);' : 'opacity:0.5;'}`;
+      item.append(bgBadge);
+    }
+    item.append(rm);
+    item.addEventListener('click', e => { if (e.target === rm) return; state.activeFile = name; renderFileList(); updateCalibChart(); });
+    rm.addEventListener('click', () => {
+      delete state.files[name];
+      if (state.activeFile === name) { const r = Object.keys(state.files); state.activeFile = r.length ? r[r.length-1] : null; }
+      renderFileList(); checkEmpty();
+      if (Object.keys(state.files).length) { updateChart(); updateCalibChart(); }
+      else {
+        if (chart) { chart.data.labels = []; chart.data.datasets = []; chart.update('none'); }
+        if (calibChartObj) { calibChartObj.data.labels = []; calibChartObj.data.datasets = []; calibChartObj.update('none'); }
+      }
+    });
+    list.appendChild(item);
+  });
+}
+
+function checkEmpty() {
+  const has = Object.keys(state.files).length > 0;
+  document.getElementById('emptyState').style.display = has ? 'none' : '';
+  document.getElementById('chartWrap').style.display  = has ? ''     : 'none';
+}
+
+function updateBgFileSelect() {
+  const names = Object.keys(state.files);
+  const sel = document.getElementById('bgFileSelect');
+  const panel = document.getElementById('bgPanel');
+  panel.style.display = names.length ? '' : 'none';
+  if (!names.includes(state.bgFile)) { state.bgFile = null; state.bgSubtract = false; }
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— none —</option>';
+  names.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    if (name === state.bgFile) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (!state.bgFile) sel.value = '';
+  document.getElementById('bgSubtractToggle').classList.toggle('on', state.bgSubtract);
+}
+
+function loadFiles(fileList) {
+  const files = Array.from(fileList);
+  if (!files.length) return;
+  let pending = files.length;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onerror = () => { showError(`Failed to read "${file.name}"`); if (!--pending) finalise(); };
+    reader.onload = e => {
+      try {
+        const parsed = parseFile(e.target.result);
+        const hasData = parsed.mode === 'bins' ? parsed.data.counts.length > 0 : parsed.data.length > 0;
+        if (hasData) { state.files[file.name] = parsed; state.activeFile = file.name; }
+        else showError(`No data found in "${file.name}"`);
+
+      } catch(err) { showError(`Parse error: ${err.message}`); }
+      if (!--pending) finalise();
+    };
+    reader.readAsText(file);
+  });
+  function finalise() { renderFileList(); checkEmpty(); if (Object.keys(state.files).length) { updateChart(); updateCalibChart(); updateSlotSelects(); updateCompareChart(); } }
+}
+
+/* ═══════════════════════════════════════════════
+   COMPARE TAB
+═══════════════════════════════════════════════ */
+const COMPARE_COLORS = [
+  { bg: 'rgba(43,92,165,0.45)',  border: '#2b5ca5' },  // muted blue
+  { bg: 'rgba(200,120,30,0.45)', border: '#c8781e' },  // muted amber
+  { bg: 'rgba(30,140,130,0.45)', border: '#1e8c82' },  // muted teal
+];
+
+function updateSlotSelects() {
+  const names = Object.keys(state.files);
+  const n = compareState.threeSlots ? 3 : 2;
+  for (let s = 0; s < 3; s++) {
+    const sel = document.getElementById('slotSelect' + s);
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— select file —</option>';
+    names.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === prev) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // restore slot
+    if (!names.includes(compareState.slots[s])) compareState.slots[s] = null;
+  }
+}
+
+function normFactor(fe, fileName, livetime, norm) {
+  if (norm === 'none') return 1;
+  if (norm === 'max') {
+    const { counts } = getHistogramSub(fe, fileName, compareState.bins, null, null, compareState.absValue);
+    const mx = Math.max(...counts);
+    return mx > 0 ? 1 / mx : 1;
+  }
+  if (norm === 'area') {
+    const { counts } = getHistogramSub(fe, fileName, compareState.bins, null, null, compareState.absValue);
+    const total = counts.reduce((a,b)=>a+b,0);
+    return total > 0 ? 1 / total : 1;
+  }
+  if (norm === 'livetime') {
+    return livetime > 0 ? 1 / livetime : 1;
+  }
+  return 1;
+}
+
+function buildCompareChart() {
+  const ctx = document.getElementById('compareChart').getContext('2d');
+  compareChartObj = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      resizeDelay: 100, devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      normalized: false,
+      datasets: { bar: { categoryPercentage: 1.0, barPercentage: 1.0, minBarLength: 1 } },
+      plugins: {
+        legend: { labels: { color: '#888', font: { family: 'Courier New', size: 11 }, boxWidth: 10, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#fff', borderColor: '#ccc', borderWidth: 1,
+          titleColor: '#111', bodyColor: '#555',
+          titleFont: { family: 'Courier New', size: 11 }, bodyFont: { family: 'Courier New', size: 11 },
+          callbacks: {
+            title: i => i[0].label + (state.calibration ? ' keV' : ' pC'),
+            label: i => `${i.dataset.label}: ${i.parsed.y.toFixed(4)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#eee' }, ticks: { color: '#999', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 12, maxRotation: 0 },
+          title: { display: true, text: state.calibration ? 'Energy [keV]' : 'Charge [pC]', color: '#aaa', font: { family: 'Courier New', size: 11 } } },
+        y: { type: 'linear', grid: { color: '#eee' }, ticks: { color: '#999', font: { family: 'Courier New', size: 10 }, maxTicksLimit: 7 },
+          title: { display: true, text: 'Counts (normalised)', color: '#aaa', font: { family: 'Courier New', size: 11 } } }
+      }
+    }
+  });
+}
+
+function updateCompareChart() {
+  if (!compareChartObj) buildCompareChart();
+
+  const activeSlots = compareState.slots
+    .slice(0, compareState.threeSlots ? 3 : 2)
+    .map((name, i) => ({ name, idx: i }))
+    .filter(s => s.name && state.files[s.name]);
+
+  document.getElementById('compareHint').textContent = activeSlots.length === 0
+    ? 'Select files in the Spectrum tab first, then choose them above.'
+    : activeSlots.length === 1 ? 'Select at least one more spectrum to compare.' : '';
+
+  if (activeSlots.length === 0) {
+    compareChartObj.data.labels = []; compareChartObj.data.datasets = []; lastCompareCenters = null; compareChartObj.update('none'); return;
+  }
+
+  // Build shared x-axis from all selected raws
+  const nBins = compareState.bins;
+  const abs = compareState.absValue;
+  let globalLo = null, globalHi = null;
+  activeSlots.forEach(s => {
+    const fe = state.files[s.name];
+    const vals = getRawValues(fe, abs);
+    for (const v of vals) {
+      if (globalLo === null || v < globalLo) globalLo = v;
+      if (globalHi === null || v > globalHi) globalHi = v;
+    }
+  });
+  if (compareState.xMin !== null) globalLo = compareState.xMin;
+  if (compareState.xMax !== null) globalHi = compareState.xMax;
+
+  const cal = state.calibration;
+  let sharedLabels = null;
+  const datasets = [];
+  const firstFe = state.files[activeSlots[0].name];
+
+  activeSlots.forEach(s => {
+    const fe = state.files[s.name];
+    const { centers, counts } = getHistogramSub(fe, s.name, nBins, globalLo, globalHi, abs);
+    if (!sharedLabels) { sharedLabels = cal
+      ? centers.map(q => (cal.a * q + cal.b).toFixed(2))
+      : centers.map(q => fe.mode === 'bins' ? String(Math.round(q)) : q.toFixed(3));
+      lastCompareCenters = centers;
+    }
+
+    const lt = compareState.livetimes[s.idx];
+    const factor = normFactor(fe, s.name, lt, compareState.norm);
+    const normed = counts.map(c => c * factor);
+
+    const col = COMPARE_COLORS[s.idx];
+    datasets.push({
+      label: s.name,
+      data: normed,
+      backgroundColor: compareState.fill ? col.bg : col.bg.replace(/[\d.]+\)$/, '0.6)'),
+      borderColor: col.border,
+      borderWidth: 1,
+      barPercentage: 1.0,
+      categoryPercentage: 1.0,
+      fill: compareState.fill,
+    });
+  });
+
+  compareChartObj.data.labels = sharedLabels || [];
+  compareChartObj.data.datasets = datasets;
+  compareChartObj.options.scales.y.type = compareState.logY ? 'logarithmic' : 'linear';
+  compareChartObj.options.scales.y.min = compareState.yMin !== null ? compareState.yMin : undefined;
+  compareChartObj.options.scales.y.max = compareState.yMax !== null ? compareState.yMax : undefined;
+  compareChartObj.options.scales.x.title.text = xAxisLabel(firstFe, cal);
+  const yLabel = compareState.norm === 'none' ? 'Counts' :
+    compareState.norm === 'area' ? 'Normalised (area=1)' :
+    compareState.norm === 'max' ? 'Normalised (max=1)' : 'Counts / s';
+  compareChartObj.options.scales.y.title.text = yLabel;
+  compareChartObj.update('none');
+
+  // Update statusbar
+  const labels = ['A','B','C'];
+  activeSlots.forEach(s => {
+    const fe = state.files[s.name];
+    const { counts } = getHistogramSub(fe, s.name, nBins, globalLo, globalHi, abs);
+    const total = counts.reduce((a,b)=>a+b,0);
+    const mx = Math.max(...counts);
+    const el = document.getElementById('compareStat' + labels[s.idx]);
+    el.style.display = '';
+    el.innerHTML = `<span style="color:var(--muted)">${labels[s.idx]}: </span><span class="val">${s.name.length > 20 ? s.name.slice(0,18)+'…' : s.name}</span>  total=${total.toLocaleString()}  max=${mx}`;
+  });
+  // hide unused
+  [0,1,2].forEach(i => {
+    if (!activeSlots.find(s => s.idx === i)) {
+      const el = document.getElementById('compareStat' + labels[i]);
+      if (el) { el.style.display = 'none'; }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+    // The panel was just switched from display:none to flex. Chart.js'
+    // resize observer can miss this transition (it reads a 0x0 box right
+    // before the layout settles), leaving the chart squashed until the
+    // next unrelated update. Force a resize once the layout has settled.
+    if (this.dataset.tab === 'spectrum' && chart) {
+      requestAnimationFrame(() => chart.resize());
+    }
+    if (this.dataset.tab === 'calibration') {
+      setTimeout(() => { if (calibChartObj) calibChartObj.resize(); updateCalibChart(); }, 10);
+    }
+    if (this.dataset.tab === 'compare') {
+      updateSlotSelects();
+      setTimeout(() => { if (compareChartObj) compareChartObj.resize(); updateCompareChart(); }, 10);
+    }
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   SPECTRUM EVENT WIRING
+═══════════════════════════════════════════════ */
+// Mode selector buttons
+document.getElementById('modeCharge').addEventListener('click', function() {
+  forcedMode = 'charge';
+  this.classList.add('active');
+  document.getElementById('modeBins').classList.remove('active');
+  document.getElementById('dropHint').textContent = '.dat  .csv  .txt';
+});
+document.getElementById('modeBins').addEventListener('click', function() {
+  forcedMode = 'bins';
+  this.classList.add('active');
+  document.getElementById('modeCharge').classList.remove('active');
+  document.getElementById('dropHint').textContent = '.spe  .mca  .chn  .txt';
+});
+
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { loadFiles(e.target.files); e.target.value = ''; });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); loadFiles(e.dataTransfer.files); });
+
+document.getElementById('absToggle').addEventListener('click', function() {
+  state.absValue = !state.absValue; this.classList.toggle('on', state.absValue);
+  if (Object.keys(state.files).length) updateChart();
+});
+document.getElementById('logToggle').addEventListener('click', function() {
+  state.logY = !state.logY; this.classList.toggle('on', state.logY);
+  if (Object.keys(state.files).length) updateChart();
+});
+
+function refreshAfterBgChange() {
+  if (!Object.keys(state.files).length) return;
+  updateChart();
+  updateCalibChart();
+  updateCompareChart();
+}
+document.getElementById('bgFileSelect').addEventListener('change', function() {
+  state.bgFile = this.value || null;
+  if (!state.bgFile) state.bgSubtract = false;
+  document.getElementById('bgSubtractToggle').classList.toggle('on', state.bgSubtract);
+  refreshAfterBgChange();
+});
+document.getElementById('bgSubtractToggle').addEventListener('click', function() {
+  if (!state.bgFile) { showError('Pick a background file first.'); return; }
+  state.bgSubtract = !state.bgSubtract;
+  this.classList.toggle('on', state.bgSubtract);
+  refreshAfterBgChange();
+});
+document.getElementById('bgSampleLT').addEventListener('change', function() {
+  state.bgSampleLiveTime = this.value !== '' ? parseFloat(this.value) : null;
+  refreshAfterBgChange();
+});
+document.getElementById('bgLT').addEventListener('change', function() {
+  state.bgLiveTime = this.value !== '' ? parseFloat(this.value) : null;
+  refreshAfterBgChange();
+});
+
+document.getElementById('binCount').addEventListener('change', function() {
+  state.bins = Math.max(5, Math.min(2000, parseInt(this.value) || 100));
+  state.baseBins = state.bins;
+  if (Object.keys(state.files).length) updateChart();
+});
+document.getElementById('applyBtn').addEventListener('click', () => {
+  const g = id => { const v = document.getElementById(id).value; return v !== '' ? parseFloat(v) : null; };
+  state.xMin = g('xMin'); state.xMax = g('xMax'); state.yMin = g('yMin'); state.yMax = g('yMax');
+  if (Object.keys(state.files).length) updateChart();
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  state.xMin = state.xMax = state.yMin = state.yMax = null;
+  ['xMin','xMax','yMin','yMax'].forEach(id => document.getElementById(id).value = '');
+  if (Object.keys(state.files).length) updateChart();
+});
+['xMin','xMax','yMin','yMax'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('applyBtn').click(); })
+);
+document.getElementById('exportPng').addEventListener('click', () => {
+  if (!chart) return;
+  const a = document.createElement('a'); a.download = 'charge_spectrum.png'; a.href = chart.toBase64Image('image/png', 1); a.click();
+});
+document.getElementById('exportCsv').addEventListener('click', () => {
+  if (!state.activeFile || !state.files[state.activeFile]) return;
+  const fe = state.files[state.activeFile];
+  const { centers, counts } = getHistogramSub(fe, state.activeFile, state.bins, state.xMin, state.xMax, state.absValue);
+  const cal = state.calibration;
+  const isBinsFe = fe.mode === 'bins';
+  let csv = cal ? 'energy_keV,counts\n' : (isBinsFe ? 'bin,counts\n' : 'charge_pC,counts\n');
+  for (let i = 0; i < centers.length; i++) {
+    const x = cal ? (cal.a * centers[i] + cal.b).toFixed(4) : (isBinsFe ? Math.round(centers[i]) : centers[i].toFixed(4));
+    csv += `${x},${counts[i]}\n`;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = (state.activeFile.replace(/\.(dat|csv|txt)$/i,'')) + '_histogram.csv'; a.click();
+});
+
+/* ═══════════════════════════════════════════════
+   CALIBRATION EVENT WIRING
+═══════════════════════════════════════════════ */
+document.getElementById('calibBins').addEventListener('change', function() {
+  state.calibBins = Math.max(5, Math.min(2000, parseInt(this.value) || 100));
+  state.peaks = []; renderPeakTable();  // clear peaks when bins change (positions shift)
+  document.getElementById('gaussFitInfo').style.display = 'none';
+  updateCalibChart();
+});
+document.getElementById('calibWindow').addEventListener('change', function() {
+  // no action needed until next click
+});
+document.getElementById('calibAbsToggle').addEventListener('click', function() {
+  state.calibAbsValue = !state.calibAbsValue;
+  this.classList.toggle('on', state.calibAbsValue);
+  updateCalibChart();
+});
+
+document.getElementById('applyCalibRangeBtn').addEventListener('click', () => {
+  const g = id => { const v = document.getElementById(id).value; return v !== '' ? parseFloat(v) : null; };
+  state.calibXMin = g('calibXMin'); state.calibXMax = g('calibXMax');
+  state.calibYMin = g('calibYMin'); state.calibYMax = g('calibYMax');
+  updateCalibChart();
+});
+document.getElementById('resetCalibRangeBtn').addEventListener('click', () => {
+  state.calibXMin = state.calibXMax = state.calibYMin = state.calibYMax = null;
+  ['calibXMin','calibXMax','calibYMin','calibYMax'].forEach(id => document.getElementById(id).value = '');
+  updateCalibChart();
+});
+['calibXMin','calibXMax','calibYMin','calibYMax'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('applyCalibRangeBtn').click(); })
+);
+
+document.getElementById('fitCalibBtn').addEventListener('click', () => {
+  fitCalibration();
+});
+document.getElementById('clearPeaksBtn').addEventListener('click', () => {
+  state.peaks = [];
+  renderPeakTable();
+  document.getElementById('gaussFitInfo').style.display = 'none';
+  if (calibChartObj) calibChartObj.update('none');
+});
+
+document.getElementById('applyManualBtn').addEventListener('click', () => {
+  const a = parseFloat(document.getElementById('manualA').value);
+  const b = parseFloat(document.getElementById('manualB').value);
+  if (isNaN(a) || isNaN(b)) { alert('Please enter valid numbers for a and b.'); return; }
+  state.calibration = { a, b, r2: undefined, source: 'manual' };
+  showCalibResult(a, b, undefined);
+  showManualSuccess();
+});
+
+document.getElementById('runPeakSearchBtn').addEventListener('click', () => runPeakSearch());
+
+document.getElementById('applyCalibBtn').addEventListener('click', () => {
+  if (!state.calibration) return;
+  updateChart();
+  // Switch to spectrum tab
+  document.querySelector('[data-tab="spectrum"]').click();
+});
+
+document.getElementById('exportCalibPng').addEventListener('click', () => {
+  if (!calibChartObj) return;
+  const a = document.createElement('a'); a.download = 'calibration_spectrum.png'; a.href = calibChartObj.toBase64Image('image/png', 1); a.click();
+});
+document.getElementById('exportCalibCsv').addEventListener('click', () => {
+  if (!state.calibration) { alert('No calibration set. Fit or enter an equation first.'); return; }
+  if (!state.activeFile || !state.files[state.activeFile]) { alert('No data loaded.'); return; }
+  const fe = state.files[state.activeFile];
+  const { centers, counts } = getHistogramSub(fe, state.activeFile, state.calibBins, null, null, state.calibAbsValue);
+  const cal = state.calibration;
+  const isBinsCal = fe.mode === 'bins';
+  let csv = isBinsCal ? 'bin,energy_keV,counts\n' : 'charge_pC,energy_keV,counts\n';
+  for (let i = 0; i < centers.length; i++) {
+    const x = isBinsCal ? Math.round(centers[i]) : centers[i].toFixed(4);
+    csv += `${x},${(cal.a*centers[i]+cal.b).toFixed(4)},${counts[i]}\n`;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = (state.activeFile.replace(/\.(dat|csv|txt)$/i,'')) + '_calibrated.csv'; a.click();
+});
+/* ═══════════════════════════════════════════════
+   SMOOTHING
+═══════════════════════════════════════════════ */
+function gaussianSmooth(counts, sigma) {
+  if (sigma < 0.5) return counts;
+  const r = Math.ceil(sigma * 3);
+  const kernel = [];
+  let ksum = 0;
+  for (let i = -r; i <= r; i++) { const v = Math.exp(-0.5*(i/sigma)**2); kernel.push(v); ksum += v; }
+  const norm = kernel.map(v => v/ksum);
+  return counts.map((_, ci) => {
+    let s = 0;
+    for (let j = 0; j < norm.length; j++) {
+      const idx = ci - r + j;
+      s += (idx >= 0 && idx < counts.length ? counts[idx] : 0) * norm[j];
+    }
+    return s;
+  });
+}
+
+document.getElementById('smoothToggle').addEventListener('click', function() {
+  smoothState.enabled = !smoothState.enabled;
+  this.classList.toggle('on', smoothState.enabled);
+  document.getElementById('smoothWidthRow').style.display = smoothState.enabled ? '' : 'none';
+  if (Object.keys(state.files).length) updateChart();
+});
+document.getElementById('smoothWidth').addEventListener('change', function() {
+  smoothState.width = Math.max(1, Math.min(20, parseInt(this.value)||2));
+  if (smoothState.enabled && Object.keys(state.files).length) updateChart();
+});
+
+/* ═══════════════════════════════════════════════
+   NUCLIDE LIBRARY
+═══════════════════════════════════════════════ */
+const NUCLIDE_LIBRARY = [
+  { name: '²⁴¹Am',  lines: [59.54] },
+  { name: '¹³³Ba',  lines: [53.16, 79.61, 81.00, 160.61, 223.11, 276.40, 302.85, 356.02, 383.85] },
+  { name: '⁵⁷Co',   lines: [14.41, 122.06, 136.47] },
+  { name: '⁶⁰Co',   lines: [1173.23, 1332.49] },
+  { name: '¹³⁷Cs',  lines: [661.66] },
+  { name: '¹⁵²Eu',  lines: [121.78, 244.70, 344.28, 411.12, 443.96, 778.90, 867.37, 964.08, 1085.84, 1112.07, 1212.95, 1299.14, 1408.01] },
+  { name: '²²Na',   lines: [511.00, 1274.54] },
+  { name: '⁵⁴Mn',   lines: [834.85] },
+  { name: '²⁰⁸Tl',  lines: [277.36, 510.77, 583.19, 860.56, 2614.51] },
+  { name: '²²⁸Ac',  lines: [209.25, 270.24, 328.00, 338.32, 409.46, 463.00, 794.95, 911.20, 964.77, 968.97, 1588.19] },
+  { name: '²¹⁴Bi',  lines: [609.31, 768.36, 934.06, 1120.29, 1238.11, 1764.49, 2204.21] },
+  { name: '²¹⁴Pb',  lines: [242.00, 295.21, 351.93] },
+  { name: '⁴⁰K',    lines: [1460.82] },
+  { name: '²³²Th',  lines: [238.63, 300.09, 583.19, 727.33, 860.56, 911.20, 968.97, 2614.51] },
+  { name: '²³⁸U',   lines: [49.55, 113.50, 258.26] },
+  { name: '¹³¹I',   lines: [80.19, 284.31, 364.49, 637.00, 722.91] },
+  { name: '⁹⁹ᵐTc',  lines: [140.51] },
+  { name: '¹⁸F',    lines: [511.00] },
+  { name: '¹⁰⁹Cd',  lines: [88.03] },
+  { name: '⁸⁸Y',    lines: [898.04, 1836.06] },
+  { name: '²⁰⁷Bi',  lines: [569.70, 1063.66, 1770.24] },
+  { name: '²²⁶Ra',  lines: [186.21] },
+];
+
+/* ═══════════════════════════════════════════════
+   AUTO PEAK SEARCH
+═══════════════════════════════════════════════ */
+function runPeakSearch() {
+  const activeName = state.files[state.activeFile] ? state.activeFile : Object.keys(state.files)[0];
+  const fe = state.files[activeName];
+  if (!fe) { alert('No data loaded.'); return; }
+  const nBins = state.calibBins;
+  const { centers, counts } = getHistogramSub(fe, activeName, nBins, null, null, state.calibAbsValue);
+
+  const thresh = parseFloat(document.getElementById('peakSearchThresh').value) || 5;
+  const minSep = parseInt(document.getElementById('peakSearchSep').value) || 5;
+
+  // Smooth counts for peak detection only (original counts still used for Gaussian fitting).
+  // Sigma = half of minSep gives smoothing proportional to the requested separation.
+  const smoothSigma = Math.max(1, minSep / 2);
+  const smoothed = gaussianSmooth(counts, smoothSigma);
+
+  // Estimate noise as RMS of (counts - smoothed) residuals.
+  // This measures actual bin-to-bin fluctuation independent of spectral shape.
+  const residuals = counts.map((c, i) => c - smoothed[i]);
+  const rms = Math.sqrt(residuals.reduce((s, r) => s + r * r, 0) / residuals.length);
+  const noiseEstimate = Math.max(1, rms);
+  const minHeight = thresh * noiseEstimate;
+
+  // Find local maxima in the SMOOTHED spectrum above threshold.
+  // A candidate must also be the tallest within ±minSep.
+  const foundPeaks = [];
+  for (let i = 1; i < smoothed.length - 1; i++) {
+    if (smoothed[i] <= minHeight) continue;
+    if (smoothed[i] < smoothed[i - 1] || smoothed[i] < smoothed[i + 1]) continue;
+    let isMax = true;
+    const lo = Math.max(0, i - minSep);
+    const hi = Math.min(smoothed.length - 1, i + minSep);
+    for (let j = lo; j <= hi; j++) {
+      if (j !== i && smoothed[j] > smoothed[i]) { isMax = false; break; }
+    }
+    if (isMax) foundPeaks.push(i);
+  }
+
+  // Secondary dedup pass: merge any survivors still within minSep (keeps tallest).
+  const filtered = [];
+  for (const pi of foundPeaks) {
+    if (filtered.length === 0 || pi - filtered[filtered.length - 1] >= minSep) {
+      filtered.push(pi);
+    } else if (counts[pi] > counts[filtered[filtered.length - 1]]) {
+      filtered[filtered.length - 1] = pi;
+    }
+  }
+
+  // For each found peak, run Gaussian fit and add to state.peaks.
+  state.peaks = [];
+  for (const peakIdx of filtered) {
+    const peakMax = counts[peakIdx];
+    const empiricalHalfMax = peakMax / 2;
+
+    // Walk outward only to estimate the fit window. Final FWHM comes from
+    // the Gaussian formula: FWHM = 2*sqrt(2*ln(2))*sigma.
+    let lI = peakIdx, rI = peakIdx;
+    while (lI > 0 && counts[lI] > empiricalHalfMax) lI--;
+    while (rI < counts.length - 1 && counts[rI] > empiricalHalfMax) rI++;
+
+    // Fit window: 1.5× the empirical half-height width in bins, minimum 2 bins each side.
+    const fwhmBins = Math.max(2, rI - lI);
+    const fitWin   = Math.max(2, Math.round(fwhmBins * 1.5));
+    const fitLo    = Math.max(0, peakIdx - fitWin);
+    const fitHi    = Math.min(counts.length - 1, peakIdx + fitWin);
+    const xs = [], ys = [];
+    for (let i = fitLo; i <= fitHi; i++) { xs.push(centers[i]); ys.push(counts[i]); }
+
+    let mu = centers[peakIdx];
+    let sigma = null, amp = null, r2 = null;
+    let fwhm = null, leftQ = null, rightQ = null, halfMax = null;
+    if (xs.length >= 4) {
+      const fit = gaussianFit(xs, ys);
+      // Accept fit only if the centre landed inside the fit window.
+      if (fit.mu >= xs[0] && fit.mu <= xs[xs.length - 1] && Number.isFinite(fit.sigma) && fit.sigma > 0) {
+        const fwhmInfo = fwhmFromGaussianFit(fit.mu, fit.sigma, fit.amp);
+        if (fwhmInfo) {
+          mu = fit.mu;
+          sigma = fit.sigma;
+          amp = fit.amp;
+          r2 = fit.r2;
+          fwhm = fwhmInfo.fwhm;
+          leftQ = fwhmInfo.leftQ;
+          rightQ = fwhmInfo.rightQ;
+          halfMax = fwhmInfo.halfMax;
+        }
+      }
+    }
+
+    state.peaks.push({ q: mu, e: null, sigma, amp, r2, gaussXs: xs, gaussYs: ys, fwhm, leftQ, rightQ, halfMax });
+  }
+
+  renderPeakTable();
+  if (calibChartObj) calibChartObj.update('none');
+  const infoEl = document.getElementById('gaussFitInfo');
+  infoEl.style.display = '';
+  infoEl.innerHTML = `Found <b>${filtered.length}</b> peak(s) &mdash; noise RMS ≈ ${noiseEstimate.toFixed(1)}, threshold = ${minHeight.toFixed(1)} counts.`;
+}
+
+/* ═══════════════════════════════════════════════
+   NUCLIDE IDENTIFICATION
+═══════════════════════════════════════════════ */
+function runNuclideID() {
+  if (!state.calibration) { alert('Apply a calibration first.'); return; }
+  const tol = parseFloat(document.getElementById('nuclideTolerance').value) || 10;
+  const cal = state.calibration;
+  const peakEnergies = state.peaks.filter(p=>p.e!=null).map(p=>p.e)
+    .concat(state.peaks.filter(p=>p.e==null).map(p=> cal.a*p.q+cal.b));
+
+  if (!peakEnergies.length) { alert('No peaks marked. Click peaks or run auto-search first.'); return; }
+
+  const results = [];
+  for (const nuc of NUCLIDE_LIBRARY) {
+    const matches = [];
+    for (const line of nuc.lines) {
+      const close = peakEnergies.filter(e => Math.abs(e-line) <= tol);
+      if (close.length) matches.push({ line, measured: close[0], delta: close[0]-line });
+    }
+    if (matches.length) results.push({ name: nuc.name, matches, score: matches.length/nuc.lines.length });
+  }
+  results.sort((a,b)=>b.score-a.score || b.matches.length-a.matches.length);
+
+  const div = document.getElementById('nuclideResults');
+  document.getElementById('nuclidePanel').style.display='';
+  if (!results.length) { div.innerHTML='<span style="color:var(--muted)">No matches found.</span>'; return; }
+  div.innerHTML = results.slice(0,8).map(r=>`
+    <div style="margin-bottom:6px;padding:4px 6px;border:1px solid var(--border-lt);background:var(--plot-bg);">
+      <b>${r.name}</b> <span style="color:var(--muted)">(${r.matches.length} line${r.matches.length>1?'s':''})</span><br>
+      ${r.matches.map(m=>`<span style="color:var(--muted)">${m.line.toFixed(2)} keV</span> → <b>${m.measured.toFixed(2)}</b> <span style="color:#888">(Δ${m.delta>0?'+':''}${m.delta.toFixed(1)} keV)</span>`).join('<br>')}
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   NET PEAK AREA
+═══════════════════════════════════════════════ */
+function computeNetArea(peakObj) {
+  const activeName = state.files[state.activeFile] ? state.activeFile : Object.keys(state.files)[0];
+  const fe = state.files[activeName];
+  if (!fe || !peakObj || peakObj.leftQ == null) return null;
+  const { centers, counts } = getHistogramSub(fe, activeName, state.calibBins, null, null, state.calibAbsValue);
+  // Find index range for left and right base
+  let lI=0, rI=centers.length-1;
+  for (let i=0;i<centers.length;i++) { if(centers[i]<=peakObj.leftQ) lI=i; }
+  for (let i=centers.length-1;i>=0;i--) { if(centers[i]>=peakObj.rightQ) rI=i; }
+  // Linear background between lI and rI
+  const cL=counts[lI], cR=counts[rI];
+  let gross=0, bg=0;
+  const n = rI-lI+1;
+  for (let i=lI;i<=rI;i++) {
+    gross+=counts[i];
+    bg += cL + (cR-cL)*(i-lI)/Math.max(1,n-1);
+  }
+  const net = Math.max(0, gross-bg);
+  const netErr = Math.sqrt(gross+bg); // Poisson uncertainty
+  return { gross: Math.round(gross), bg: Math.round(bg), net: Math.round(net), netErr: Math.round(netErr) };
+}
+
+function showNetArea(peakObj) {
+  const result = computeNetArea(peakObj);
+  const panel = document.getElementById('netAreaPanel');
+  const box = document.getElementById('netAreaBox');
+  if (!result) { panel.style.display='none'; return; }
+  panel.style.display='';
+  box.innerHTML = `Gross: <b>${result.gross}</b><br>Background: <b>${result.bg}</b><br>Net area: <b>${result.net}</b> ± ${result.netErr}`;
+  updateActivity(peakObj, result);
+}
+
+function updateActivity(peakObj, netResult) {
+  const lt = parseFloat(document.getElementById('liveTimeInput').value);
+  const eff = parseFloat(document.getElementById('efficiencyInput').value);
+  const box = document.getElementById('activityBox');
+  if (!isNaN(lt) && !isNaN(eff) && lt>0 && eff>0 && netResult) {
+    const A = netResult.net / (lt * eff);
+    const dA = netResult.netErr / (lt * eff);
+    box.style.display='';
+    box.innerHTML = `Activity: <b>${A.toFixed(2)} ± ${dA.toFixed(2)} Bq</b>`;
+  } else {
+    box.style.display='none';
+  }
+}
+
+function solve3x3(A, B) {
+  // Gaussian elimination with partial pivoting
+  const M=A.map((r,i)=>[...r,B[i]]);
+  for (let c=0;c<3;c++) {
+    let mx=Math.abs(M[c][c]),mxi=c;
+    for(let r=c+1;r<3;r++) if(Math.abs(M[r][c])>mx){mx=Math.abs(M[r][c]);mxi=r;}
+    [M[c],M[mxi]]=[M[mxi],M[c]];
+    if (Math.abs(M[c][c]) < 1e-14) throw new Error('Singular matrix — points may be collinear in log-log space. Add more well-separated data points.');
+    for(let r=c+1;r<3;r++){const f=M[r][c]/M[c][c]; for(let k=c;k<=3;k++) M[r][k]-=f*M[c][k];}
+  }
+  const x=[0,0,0];
+  for(let i=2;i>=0;i--){x[i]=M[i][3];for(let j=i+1;j<3;j++) x[i]-=M[i][j]*x[j]; x[i]/=M[i][i];}
+  return x;
+}
+
+/* ═══════════════════════════════════════════════
+   COMPARE EVENT WIRING
+═══════════════════════════════════════════════ */
+['slotSelect0','slotSelect1','slotSelect2'].forEach((id, i) => {
+  document.getElementById(id).addEventListener('change', function() {
+    compareState.slots[i] = this.value || null;
+    updateCompareChart();
+  });
+});
+
+document.getElementById('addSlotBtn').addEventListener('click', function() {
+  compareState.threeSlots = true;
+  document.getElementById('slot2').style.display = '';
+  document.getElementById('livetime2row').style.display = '';
+  document.getElementById('compareStatC').style.display = '';
+  this.style.display = 'none';
+  updateSlotSelects();
+  updateCompareChart();
+});
+
+document.querySelectorAll('.norm-btn[data-norm]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.norm-btn[data-norm]').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    compareState.norm = this.dataset.norm;
+    const descs = {
+      none: 'Raw counts, no scaling.',
+      area: 'Each spectrum divided by its total area. Useful when measurement times differ.',
+      max: 'Each spectrum divided by its maximum bin. Useful for shape comparison.',
+      livetime: 'Each spectrum divided by its live time [s]. Gives count rate per second.'
+    };
+    document.getElementById('normDesc').textContent = descs[compareState.norm];
+    updateCompareChart();
+  });
+});
+
+document.getElementById('compareBins').addEventListener('change', function() {
+  compareState.bins = Math.max(5, Math.min(2000, parseInt(this.value) || 100));
+  updateCompareChart();
+});
+
+document.getElementById('compareAbsToggle').addEventListener('click', function() {
+  compareState.absValue = !compareState.absValue;
+  this.classList.toggle('on', compareState.absValue);
+  updateCompareChart();
+});
+
+document.getElementById('compareLogToggle').addEventListener('click', function() {
+  compareState.logY = !compareState.logY;
+  this.classList.toggle('on', compareState.logY);
+  updateCompareChart();
+});
+
+document.getElementById('compareFillToggle').addEventListener('click', function() {
+  compareState.fill = !compareState.fill;
+  this.classList.toggle('on', compareState.fill);
+  updateCompareChart();
+});
+
+['livetime0','livetime1','livetime2'].forEach((id, i) => {
+  document.getElementById(id).addEventListener('change', function() {
+    compareState.livetimes[i] = this.value !== '' ? parseFloat(this.value) : null;
+    if (compareState.norm === 'livetime') updateCompareChart();
+  });
+});
+
+document.getElementById('exportComparePng').addEventListener('click', () => {
+  if (!compareChartObj) return;
+  const a = document.createElement('a');
+  a.download = 'spectrum_comparison.png';
+  a.href = compareChartObj.toBase64Image('image/png', 1);
+  a.click();
+});
+
+document.getElementById('applyCompareRangeBtn').addEventListener('click', () => {
+  const g = id => { const v = document.getElementById(id).value; return v !== '' ? parseFloat(v) : null; };
+  compareState.xMin = g('compareXMin'); compareState.xMax = g('compareXMax');
+  compareState.yMin = g('compareYMin'); compareState.yMax = g('compareYMax');
+  updateCompareChart();
+});
+document.getElementById('resetCompareRangeBtn').addEventListener('click', () => {
+  compareState.xMin = compareState.xMax = compareState.yMin = compareState.yMax = null;
+  ['compareXMin','compareXMax','compareYMin','compareYMax'].forEach(id => document.getElementById(id).value = '');
+  updateCompareChart();
+});
+['compareXMin','compareXMax','compareYMin','compareYMax'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('applyCompareRangeBtn').click(); })
+);
+
+/* ═══════════════════════════════════════════════
+   BOX ZOOM (drag-to-zoom on charts, full 2D: X and Y)
+   Drag a rectangle on a chart to zoom into that region.
+   Double-click resets the range. Plain clicks (no drag)
+   are left alone so peak-picking in Calibration still works.
+
+   X is mapped CONTINUOUSLY from the pixel position (via the
+   scale's decimal-for-pixel), not snapped to the current bin
+   grid — so a single drag can resolve far finer than whatever
+   binning happens to be on screen right now (important for
+   zooming into narrow peaks).
+
+   Y is mapped directly via the linear/log scale's pixel->value
+   conversion. NOTE: locking Y to the drag box is inherently a
+   bit risky here, because zooming X causes the histogram to be
+   rebinned at full resolution within the new range — bin heights
+   change, so a Y window picked before the rebin can end up
+   clipping the new bars out of view entirely. Each onApply below
+   includes a small safety check that drops the Y-lock back to
+   auto-fit if that happens, so a drag can never make the chart
+   "go blank".
+═══════════════════════════════════════════════ */
+function roundNice(v) {
+  if (v == null || !isFinite(v)) return null;
+  return parseFloat(v.toPrecision(6));
+}
+
+// Continuous pixel -> data-value mapping for the (category) x-axis.
+// rawX = array of current bin centers, evenly spaced.
+function continuousX(chart, rawX, pixel) {
+  if (!rawX || rawX.length < 1) return null;
+  const bw = rawX.length > 1 ? Math.abs(rawX[1] - rawX[0]) : Math.abs(rawX[0]) * 0.01 || 1;
+  const axisLo = rawX[0] - bw / 2;
+  const axisHi = rawX[rawX.length - 1] + bw / 2;
+  let dec = chart.scales.x.getDecimalForPixel(pixel);
+  dec = Math.max(0, Math.min(1, dec));
+  return axisLo + dec * (axisHi - axisLo);
+}
+
+function enableBoxZoom({ canvasId, boxId, getChart, getRawX, onApply, onReset }) {
+  const canvas = document.getElementById(canvasId);
+  const box = document.getElementById(boxId);
+  const THRESH = 5;
+  let dragging = false, startX = 0, startY = 0, moved = false;
+  let activeMove = null, activeUp = null;
+
+  function stopOnce(e) { e.stopPropagation(); e.preventDefault(); }
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    const ch = getChart();
+    if (!ch || !ch.chartArea) return;
+    const rect = canvas.getBoundingClientRect();
+    dragging = true; moved = false;
+    startX = e.clientX - rect.left;
+    startY = e.clientY - rect.top;
+    box.style.left = startX + 'px'; box.style.top = startY + 'px';
+    box.style.width = '0px'; box.style.height = '0px';
+    box.style.display = 'block';
+
+    function onMove(ev) {
+      const ch2 = getChart();
+      if (!ch2) return;
+      const r = canvas.getBoundingClientRect();
+      const ca = ch2.chartArea;
+      const x = Math.max(ca.left, Math.min(ca.right, ev.clientX - r.left));
+      const y = Math.max(ca.top, Math.min(ca.bottom, ev.clientY - r.top));
+      if (Math.abs(x - startX) > THRESH || Math.abs(y - startY) > THRESH) moved = true;
+      box.style.left = Math.min(x, startX) + 'px';
+      box.style.top = Math.min(y, startY) + 'px';
+      box.style.width = Math.abs(x - startX) + 'px';
+      box.style.height = Math.abs(y - startY) + 'px';
+    }
+
+    function onUp(ev) {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      activeMove = null; activeUp = null;
+      dragging = false;
+      box.style.display = 'none';
+      const ch3 = getChart();
+      if (!ch3 || !moved) { moved = false; return; }
+      moved = false;
+      // a real drag happened — swallow the click that follows, so it
+      // doesn't get mistaken for e.g. a peak-pick click
+      canvas.addEventListener('click', stopOnce, { capture: true, once: true });
+
+      const r = canvas.getBoundingClientRect();
+      const ca = ch3.chartArea;
+      const endX = Math.max(ca.left, Math.min(ca.right, ev.clientX - r.left));
+      const endY = Math.max(ca.top, Math.min(ca.bottom, ev.clientY - r.top));
+      const px0 = Math.min(startX, endX), px1 = Math.max(startX, endX);
+      const py0 = Math.min(startY, endY), py1 = Math.max(startY, endY);
+
+      // X — category scale: continuous interpolation (not snapped to bin grid)
+      const rawX = getRawX ? getRawX() : null;
+      let xMin = continuousX(ch3, rawX, px0);
+      let xMax = continuousX(ch3, rawX, px1);
+      if (xMin != null && xMax != null) {
+        if (xMin > xMax) { const t = xMin; xMin = xMax; xMax = t; }
+        xMin = roundNice(xMin); xMax = roundNice(xMax);
+      }
+
+      // Y — linear/log scale: direct pixel -> value mapping
+      // (py0 = top of box = larger value, py1 = bottom = smaller value)
+      let yMax = ch3.scales.y.getValueForPixel(py0);
+      let yMin = ch3.scales.y.getValueForPixel(py1);
+      if (yMin > yMax) { const t = yMin; yMin = yMax; yMax = t; }
+      yMin = roundNice(yMin); yMax = roundNice(yMax);
+
+      onApply(xMin, xMax, yMin, yMax);
+    }
+
+    activeMove = onMove; activeUp = onUp;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // Safety net: if the mouse button is released outside the window
+  // (e.g. user alt-tabbed mid-drag), cancel the drag cleanly.
+  window.addEventListener('blur', () => {
+    if (!dragging) return;
+    if (activeMove) document.removeEventListener('mousemove', activeMove);
+    if (activeUp) document.removeEventListener('mouseup', activeUp);
+    activeMove = null; activeUp = null;
+    dragging = false; moved = false;
+    box.style.display = 'none';
+  });
+
+  canvas.addEventListener('dblclick', e => { e.preventDefault(); onReset(); });
+}
+
+// Re-checks the chart after a Y-lock was applied; if every visible bar ends
+// up below yMin (because rebinning at the new X-range redistributed counts
+// into shorter bars), it clears the Y-lock and reapplies so the chart never
+// goes blank from a single drag.
+function guardAgainstBlankY(chartGetter, yMin, yClearFn, reapplyFn) {
+  if (yMin == null) return;
+  const ch = chartGetter();
+  if (!ch) return;
+  let realMax = 0;
+  (ch.data.datasets || []).forEach(ds => {
+    (ds.data || []).forEach(v => { if (typeof v === 'number' && v > realMax) realMax = v; });
+  });
+  if (realMax > 0 && yMin >= realMax) {
+    yClearFn();
+    reapplyFn();
+  }
+}
+
+enableBoxZoom({
+  canvasId: 'spectrumChart', boxId: 'zoomBoxSpectrum',
+  getChart: () => chart,
+  getRawX: () => lastSpectrumCenters,
+  onApply: (xMin, xMax, yMin, yMax) => {
+    // Adaptive binning: scale bins proportionally to zoom ratio
+    let rebinned = false;
+    if (xMin != null && xMax != null && lastSpectrumCenters && lastSpectrumCenters.length > 1) {
+      const fullRange = lastSpectrumCenters[lastSpectrumCenters.length - 1] - lastSpectrumCenters[0];
+      const zoomRange = xMax - xMin;
+      if (fullRange > 0 && zoomRange > 0 && zoomRange < fullRange) {
+        const ratio = fullRange / zoomRange;
+        state.bins = Math.min(2000, Math.max(state.baseBins, Math.round(state.baseBins * ratio)));
+        document.getElementById('binCount').value = state.bins;
+        rebinned = true;
+      }
+    }
+    document.getElementById('xMin').value = xMin ?? '';
+    document.getElementById('xMax').value = xMax ?? '';
+    // When rebinning kicks in, bar heights shrink (same counts spread over
+    // more, narrower bins) — the Y bounds dragged against the OLD bar
+    // heights no longer match and would clip/squash the new bars. Let Y
+    // auto-fit instead; it only made sense to lock Y when the bin width
+    // (and therefore bar height) didn't change.
+    document.getElementById('yMin').value = rebinned ? '' : (yMin ?? '');
+    document.getElementById('yMax').value = rebinned ? '' : (yMax ?? '');
+    document.getElementById('applyBtn').click();
+    guardAgainstBlankY(() => chart, yMin,
+      () => { document.getElementById('yMin').value = ''; document.getElementById('yMax').value = ''; },
+      () => document.getElementById('applyBtn').click());
+  },
+  onReset: () => {
+    state.bins = state.baseBins;
+    document.getElementById('binCount').value = state.baseBins;
+    document.getElementById('resetBtn').click();
+  },
+});
+
+enableBoxZoom({
+  canvasId: 'calibChart', boxId: 'zoomBoxCalib',
+  getChart: () => calibChartObj,
+  getRawX: () => lastCalibCenters,
+  onApply: (xMin, xMax, yMin, yMax) => {
+    let rebinned = false;
+    if (xMin != null && xMax != null && lastCalibCenters && lastCalibCenters.length > 1) {
+      const fullRange = lastCalibCenters[lastCalibCenters.length - 1] - lastCalibCenters[0];
+      const zoomRange = xMax - xMin;
+      if (fullRange > 0 && zoomRange > 0 && zoomRange < fullRange) {
+        const ratio = fullRange / zoomRange;
+        state.calibBins = Math.min(2000, Math.max(100, Math.round(state.calibBins * ratio)));
+        document.getElementById('calibBins').value = state.calibBins;
+        rebinned = true;
+      }
+    }
+    document.getElementById('calibXMin').value = xMin ?? '';
+    document.getElementById('calibXMax').value = xMax ?? '';
+    // See spectrum-chart onApply: skip the Y-lock when bins were just
+    // rebinned, since the new (narrower) bars are shorter than what the
+    // drag was measured against.
+    document.getElementById('calibYMin').value = rebinned ? '' : (yMin ?? '');
+    document.getElementById('calibYMax').value = rebinned ? '' : (yMax ?? '');
+    document.getElementById('applyCalibRangeBtn').click();
+    guardAgainstBlankY(() => calibChartObj, yMin,
+      () => { document.getElementById('calibYMin').value = ''; document.getElementById('calibYMax').value = ''; },
+      () => document.getElementById('applyCalibRangeBtn').click());
+  },
+  onReset: () => {
+    document.getElementById('resetCalibRangeBtn').click();
+  },
+});
+
+enableBoxZoom({
+  canvasId: 'compareChart', boxId: 'zoomBoxCompare',
+  getChart: () => compareChartObj,
+  getRawX: () => lastCompareCenters,
+  onApply: (xMin, xMax, yMin, yMax) => {
+    let rebinned = false;
+    if (xMin != null && xMax != null && lastCompareCenters && lastCompareCenters.length > 1) {
+      const fullRange = lastCompareCenters[lastCompareCenters.length - 1] - lastCompareCenters[0];
+      const zoomRange = xMax - xMin;
+      if (fullRange > 0 && zoomRange > 0 && zoomRange < fullRange) {
+        const ratio = fullRange / zoomRange;
+        compareState.bins = Math.min(2000, Math.max(100, Math.round(compareState.bins * ratio)));
+        document.getElementById('compareBins').value = compareState.bins;
+        rebinned = true;
+      }
+    }
+    document.getElementById('compareXMin').value = xMin ?? '';
+    document.getElementById('compareXMax').value = xMax ?? '';
+    // See spectrum-chart onApply: skip the Y-lock when bins were just
+    // rebinned, since the new (narrower) bars are shorter than what the
+    // drag was measured against.
+    document.getElementById('compareYMin').value = rebinned ? '' : (yMin ?? '');
+    document.getElementById('compareYMax').value = rebinned ? '' : (yMax ?? '');
+    document.getElementById('applyCompareRangeBtn').click();
+    guardAgainstBlankY(() => compareChartObj, yMin,
+      () => { document.getElementById('compareYMin').value = ''; document.getElementById('compareYMax').value = ''; },
+      () => document.getElementById('applyCompareRangeBtn').click());
+  },
+  onReset: () => {
+    compareState.bins = 100;
+    document.getElementById('compareBins').value = 100;
+    document.getElementById('resetCompareRangeBtn').click();
+  },
+});
+
+/* ═══════════════════════════════════════════════
+   NUCLIDE ID BUTTON WIRING
+═══════════════════════════════════════════════ */
+document.getElementById('runNuclideBtn').addEventListener('click', runNuclideID);
+
+/* Show nuclide panel when calibration exists */
+document.getElementById('liveTimeInput').addEventListener('change', () => {
+  if (state.peaks.length) showNetArea(state.peaks[state.peaks.length - 1]);
+});
+document.getElementById('efficiencyInput').addEventListener('change', () => {
+  if (state.peaks.length) showNetArea(state.peaks[state.peaks.length - 1]);
+});
+</script>
+</body>
+</html>
